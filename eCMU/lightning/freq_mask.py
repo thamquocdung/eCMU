@@ -13,7 +13,6 @@ from ..augment import CudaBase
 from ..utils import MWF
 import museval
 from filtering import wiener
-from utils import on_load_checkpoint
 
 def compute_score(estimates, references):
     win = 44100
@@ -114,18 +113,10 @@ class MaskPredictor(pl.LightningModule):
 
         self.model = model
 
-        
-        cp = torch.load('/home/eCMU/eMUC_cp/drums-ema/epoch=20-avg_sdr=7.195.ckptpre')
-        # cp = torch.load('/home/ec2-user/.cache/torch/hub/checkpoints/vocals-b62c91ce.pth')
-        #self.model.load_state_dict(on_load_checkpoint(self.model, cp), strict=False)
-        self.model.load_state_dict(cp, strict=False)
-
-
         self.criterion = criterion
         self.targets = targets
         self.sdr = SDR()
         self.mwf = MWF(**mwf_kwargs)
-        # self.stft = STFT(n_fft=n_fft, hop_length=hop_length, dim_f=dim_f)
         self.spec = Spectrogram(n_fft=n_fft, hop_length=hop_length, power=None)
         self.inv_spec = InverseSpectrogram(n_fft=n_fft, hop_length=hop_length)
 
@@ -139,7 +130,6 @@ class MaskPredictor(pl.LightningModule):
             "targets_idx",
             torch.tensor(sorted([self.sources.index(target) for target in targets])),
         )
-        # self.validation_result = []
 
     def forward(self, x, length=None):
         X = self.spec(x)
@@ -175,50 +165,18 @@ class MaskPredictor(pl.LightningModule):
         self.log("train/loss", loss, sync_dist=True, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
-    def validation_step1(self, batch, batch_idx):
-        x, y = batch
-        y = y[:, self.targets_idx]#.squeeze(1)
-
-        X = self.spec(x)
-        Y = self.spec(y)
-        X_mag = X.abs()
-        pred_mask = self.model(X_mag)
-        
-        
-        Y_hat = self.mwf(pred_mask, X)[:,0,...].unsqueeze(1)
-        pred = self.inv_spec(Y_hat)
-
-
-        loss, values = self.criterion(pred, Y_hat, Y, X, y, x)
-        # pred = self.inv_spec(self.mwf(pred_mask, X))[:,0,...].unsqueeze(1)
-
-        batch = pred.shape[0]
-        sdrs = (
-            self.sdr(pred.view(-1, *pred.shape[-2:]), y.view(-1, *y.shape[-2:]))
-            .view(batch, -1)
-            .mean(0)
-        )
-        values["avg_sdr"] = sdrs.mean().item()
-
-        # for i, t in enumerate(self.targets_idx):
-        #     values[f"{self.sources[t]}_sdr"] = sdrs[i].item()
-        # values["avg_sdr"] = sdrs.mean().item()
-        return loss, values
-
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        y = y[:, self.targets_idx].cpu() #.squeeze(1)
+        y = y[:, self.targets_idx].cpu()
 
-        pred = self.seperate(x)
+        y_hat = self.seperate(x)
         
 
         loss, values = 0, {}
-        # loss, values = self.criterion(pred, Y_hat, Y, X, y, x)
-        # pred = self.inv_spec(self.mwf(pred_mask, X))[:,0,...].unsqueeze(1)
 
-        batch = pred.shape[0]
+        batch = y_hat.shape[0]
         sdrs = (
-            self.sdr(pred.view(-1, *pred.shape[-2:]), y.view(-1, *y.shape[-2:]))
+            self.sdr(y_hat.view(-1, *y_hat.shape[-2:]), y.view(-1, *y.shape[-2:]))
             .view(batch, -1)
             .mean(0)
         )
@@ -237,7 +195,6 @@ class MaskPredictor(pl.LightningModule):
             else:
                 avg_values[k] =  sum(x[1][k] for x in outputs) / len(outputs)
         
-        # print(avg_values)
         # self.log("val_loss", avg_loss, prog_bar=True, sync_dist=True)
         self.log_dict(avg_values, prog_bar=False, sync_dist=True)
 
@@ -283,92 +240,17 @@ class MaskPredictor(pl.LightningModule):
 
         return out
 
-    def seperate1(self, audio):
-        """Performing the separation on audio input
-
-        Args:
-            audio (Tensor): [shape=(nb_samples, nb_channels, nb_timesteps)]
-                mixture audio waveform
-
-        Returns:
-            Tensor: stacked tensor of separated waveforms
-                shape `(nb_samples, nb_targets, nb_channels, nb_timesteps)`
-        """
-
-        nb_sources = 1
-        nb_samples = audio.shape[0]
-
-        # getting the STFT of mix:
-        # (nb_samples, nb_channels, nb_bins, nb_frames, 2)
-        mix_stft = self.spec(audio)
-        X = mix_stft.abs()
-        mix_stft = torch.view_as_real(mix_stft)
-
-        # initializing spectrograms variable
-        spectrograms = torch.zeros(X.shape + (nb_sources,), dtype=audio.dtype, device=X.device)
-
-      
-        target_spectrogram = self.model(X.detach().clone(), inference=True)
-        spectrograms[..., 0] = target_spectrogram
-
-        # transposing it as
-        # (nb_samples, nb_frames, nb_bins,{1,nb_channels}, nb_sources)
-        spectrograms = spectrograms.permute(0, 3, 2, 1, 4)
-
-        # rearranging it into:
-        # (nb_samples, nb_frames, nb_bins, nb_channels, 2) to feed
-        # into filtering methods
-        mix_stft = mix_stft.permute(0, 3, 2, 1, 4)
-
-       
-        nb_sources += 1
-        niter = 1
-
-        nb_frames = spectrograms.shape[1]
-        targets_stft = torch.zeros(
-            mix_stft.shape + (nb_sources,), dtype=audio.dtype, device=mix_stft.device
-        )
-        for sample in range(nb_samples):
-            pos = 0
-            wiener_win_len = 300
-
-            while pos < nb_frames:
-                cur_frame = torch.arange(pos, min(nb_frames, pos + wiener_win_len))
-                pos = int(cur_frame[-1]) + 1
-
-                targets_stft[sample, cur_frame] = wiener(
-                    spectrograms[sample, cur_frame],
-                    mix_stft[sample, cur_frame],
-                    niter,
-                    softmask=False,
-                    residual=True,
-                )
-
-
-        # getting to (nb_samples, nb_targets, channel, fft_size, n_frames, 2)
-        targets_stft = targets_stft.permute(0, 5, 3, 2, 1, 4).contiguous()
-        targets_stft = torch.view_as_complex(targets_stft)
-
-        # inverse STFT
-        estimates = self.inv_spec(targets_stft, length=audio.shape[2])
-
-        return estimates #.cpu().detach()
-
-
     def test_step(self, batch, batch_idx):
         x, y = batch
+        y = y[:, self.targets_idx] #.squeeze(1)
 
-       
-        y = y[:, self.targets_idx]#.squeeze(1)
-
-        
-        pred = self.seperate(x)
+        y_hat = self.seperate(x)
         y = y.cpu()
 
         values = {}
-        batch = pred.shape[0]
+        batch = y_hat.shape[0]
         sdrs = (
-            self.sdr(pred.view(-1, *pred.shape[-2:]), y.view(-1, *y.shape[-2:]))
+            self.sdr(y_hat.view(-1, *y_hat.shape[-2:]), y.view(-1, *y.shape[-2:]))
             .view(batch, -1)
             .mean(0)
         )
