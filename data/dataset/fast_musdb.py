@@ -7,7 +7,7 @@ import yaml
 from pathlib import Path
 from typing import List
 
-from eCMU.utils import MDX_SOURCES as SOURCES
+from eCMU.utils import SOURCES
 
 __all__ = ["FastMUSDB"]
 
