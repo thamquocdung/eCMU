@@ -83,9 +83,6 @@ model:
       class_path: eCMU.loss.freq.MDLoss
       init_args:
         mcoeff: 10
-        n_fft: 4096
-        hop_length: 1024
-        n_iter: 1
     transforms:
     - class_path: eCMU.augment.SpeedPerturb
       init_args:

@@ -56,104 +56,30 @@ class CLoss(FLoss):
         return loss, {"loss_f": loss_f.item(), "loss_t": loss_t.item()}
 
 class MDLoss(FLoss):
-    def __init__(self, mcoeff=10, n_fft=4096, hop_length=1024, **mwf_kwargs):
+    def __init__(self, mcoeff=10):
         super().__init__()
         self.mcoeff = mcoeff
-        self.inv_spec = InverseSpectrogram(n_fft=n_fft, hop_length=hop_length)
-        self.window_sizes=[]
-        if len(mwf_kwargs):
-            self.mwf = MWF(**mwf_kwargs)
 
-    def _core_loss1(self, pred, pred_spec, gt_spec, mix_spec, gt, mix):
-        diff = pred_spec - gt_spec
+    def _core_loss(self, pred_wave, target_wave, pred_spec, target_spec, mixture_wave):
+        diff = pred_spec - target_spec
 
         real = diff.real.reshape(-1)
         imag = diff.imag.reshape(-1)
         mse = real @ real + imag @ imag
         loss_f = mse / real.numel()
         
-        # pred = self.inv_spec(pred_spec)
-        batch_size, num_target, n_channels, length = pred.shape
-
-        
+        batch_size, num_target, n_channels, length = pred_wave.shape
         # Fix Length
-        mix = mix[..., :length].reshape(-1, length)
-        gt = gt[..., :length].reshape(-1, length)
-        pred = pred.view(-1, length)
-        loss_t = _sdr_loss_core(pred, gt, mix.repeat(num_target, 1)) + 1.0
+        mixture_wave = mixture_wave[..., :length].reshape(-1, length)
+        target_wave = target_wave[..., :length].reshape(-1, length)
+        pred_wave = pred_wave.view(-1, length)
+        loss_t = _sdr_loss_core(pred_wave, target_wave, mixture_wave.repeat(num_target, 1)) + 1.0
         loss = loss_f + self.mcoeff * loss_t
 
         return loss, {
             "loss_f": loss_f.item(),
             "loss_t": loss_t.item()
         }
-    def _core_loss(self, pred_spec, gt_spec, mix_spec, gt, mix, pred):
-        loss_f = F.mse_loss(pred_spec, gt_spec)
-
-        pred_specs = [torch.stft(
-            pred.reshape(-1, pred.shape[-1]),
-            n_fft=window_size,
-            hop_length=window_size//4,
-            return_complex=True,
-            center=True
-        ) for window_size in self.window_sizes]
-
-        gt_specs = [torch.stft(
-            gt.reshape(-1, gt.shape[-1]),
-            n_fft=window_size,
-            hop_length=window_size//4,
-            return_complex=True,
-            center=True
-        ) for window_size in self.window_sizes]
-
-        for a, b in zip(pred_specs, gt_specs):
-            loss_f += F.mse_loss(torch.view_as_real(a), torch.view_as_real(b))
-
-
-        # pred = self.spec(pred_spec, inverse=True, length=mix.shape[-1])
-        batch_size, num_target, n_channels, length = pred.shape
-
-        
-        # Fix Length
-        mix = mix[..., :length].reshape(-1, length)
-        gt = gt[..., :length].reshape(-1, length)
-        pred = pred.view(-1, length)
-        loss_t = _sdr_loss_core(pred, gt, mix.repeat(num_target, 1)) + 1.0
-        loss = loss_f + self.mcoeff * loss_t
-
-        return loss, {
-            "loss_f": loss_f.item(),
-            "loss_t": loss_t.item()
-        }
-
-
-# class MDLoss(FLoss):
-#     def __init__(self, mcoeff=10, n_fft=4096, hop_length=1024):
-#         super().__init__()
-#         self.mcoeff = mcoeff
-#         self.inv_spec = InverseSpectrogram(n_fft, hop_length=hop_length)
-
-#     def _core_loss(self, msk_hat, gt_spec, mix_spec, gt, mix):
-#         pred_spec = msk_hat * mix_spec
-#         diff = pred_spec - gt_spec
-
-#         real = diff.real.reshape(-1)
-#         imag = diff.imag.reshape(-1)
-#         mse = real @ real + imag @ imag
-#         loss_f = mse / real.numel()
-
-#         pred = self.inv_spec(pred_spec)
-#         batch_size, n_channels, length = pred.shape
-
-#         # Fix Length
-#         mix = mix[..., :length].reshape(-1, length)
-#         gt = gt[..., :length].reshape(-1, length)
-#         pred = pred.view(-1, length)
-
-#         loss_t = _sdr_loss_core(pred, gt, mix) + 1.0
-#         loss = loss_f + self.mcoeff * loss_t
-#         return loss, {"loss_f": loss_f.item(), "loss_t": loss_t.item()}
-
 
 def bce_loss(msk_hat, gt_spec):
     assert msk_hat.shape == gt_spec.shape

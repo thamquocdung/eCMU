@@ -10,7 +10,7 @@ from ..loss.time import SDR
 from ..loss.freq import FLoss
 from ..augment import CudaBase
 
-from ..utils import MWF, MDX_SOURCES, SDX_SOURCES, SE_SOURCES
+from ..utils import MWF
 import museval
 from filtering import wiener
 from utils import on_load_checkpoint
@@ -115,10 +115,10 @@ class MaskPredictor(pl.LightningModule):
         self.model = model
 
         
-        cp = torch.load('checkpoints/vocals-512/epoch=435-avg_sdr=7.254.ckptpre')
+        cp = torch.load('/home/eCMU/eMUC_cp/drums-ema/epoch=20-avg_sdr=7.195.ckptpre')
         # cp = torch.load('/home/ec2-user/.cache/torch/hub/checkpoints/vocals-b62c91ce.pth')
-        self.model.load_state_dict(on_load_checkpoint(self.model, cp), strict=False)
-        # self.model.load_state_dict(cp, strict=False)
+        #self.model.load_state_dict(on_load_checkpoint(self.model, cp), strict=False)
+        self.model.load_state_dict(cp, strict=False)
 
 
         self.criterion = criterion
@@ -131,16 +131,10 @@ class MaskPredictor(pl.LightningModule):
 
         if transforms is None:
             transforms = []
-        target_track = "mdx"
+ 
         self.transforms = nn.Sequential(*transforms)
-        if target_track == "sdx":
-            self.sources = SDX_SOURCES
-        elif target_track == "mdx":
-            self.sources = MDX_SOURCES
-        elif target_track == "se":
-            self.sources = SE_SOURCES
-        else:
-            raise ValueError(f"Invalid target track: {target_track}")
+        self.sources = ["drums", "bass", "other", "vocals"]
+
         self.register_buffer(
             "targets_idx",
             torch.tensor(sorted([self.sources.index(target) for target in targets])),
@@ -168,12 +162,13 @@ class MaskPredictor(pl.LightningModule):
         X_mag = X.abs()
         pred_mask = self.model(X_mag)
 
-        # Y_hat = pred_mask * X_mag.unsqueeze(1)
-        # loss = F.mse_loss(Y.abs(), Y_hat)
-
         Y_hat = self.mwf(pred_mask, X)[:,0,...].unsqueeze(1)
-        pred = self.inv_spec(Y_hat)
-        loss, values = self.criterion(pred, Y_hat, Y, X, y, x)
+        y_hat = self.inv_spec(Y_hat)
+        loss, values = self.criterion(pred_wave=y_hat,
+                                      target_wave=y,
+                                      pred_spec=Y_hat, 
+                                      target_spec=Y, 
+                                      mixture_wave=x)
 
         # values["loss"] = loss
         # self.log_dict(values, prog_bar=False, sync_dist=True)
@@ -250,7 +245,7 @@ class MaskPredictor(pl.LightningModule):
         overlap = 0.25
         segment = 18*44100 # 127*2048 
         stride = int((1-overlap) * segment)
-        samplerate = 441000
+        samplerate = 44100
         nb_sources = 1 #len(self.sources)
         batch, channels, length = x.shape
         offsets = range(0, length, stride)
