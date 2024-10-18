@@ -203,7 +203,7 @@ class MaskPredictor(pl.LightningModule):
         segment = 18*44100 # 127*2048 
         stride = int((1-overlap) * segment)
         samplerate = 44100
-        nb_sources = 1 #len(self.sources)
+        nb_sources = 1
         batch, channels, length = x.shape
         offsets = range(0, length, stride)
 

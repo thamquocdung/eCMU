@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import yaml
 from ml_collections import ConfigDict
 from torchaudio.transforms import Spectrogram, InverseSpectrogram
-from .transformer import Net
+from .ecmu import eCMU
 from ..utils import MWF
 import os
 from pathlib import Path

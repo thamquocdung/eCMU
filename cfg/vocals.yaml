@@ -4,7 +4,7 @@ trainer:
   callbacks:
   - class_path: pytorch_lightning.callbacks.ModelCheckpoint
     init_args:
-      dirpath: "checkpoints/transformer"
+      dirpath: "checkpoints/reproduce"
       save_top_k: 2
       monitor: 'avg_sdr'
       filename: '{epoch}-{avg_sdr:.3f}'
@@ -68,22 +68,23 @@ trainer:
   inference_mode: true
 
 model:
-  class_path: eCMU.lightning.freq_mask.MaskPredictor
+  class_path: core.lightning.freq_mask.MaskPredictor
   init_args:
     model:
-      class_path: eCMU.models.transformer.OpenUnmix
+      class_path: core.models.ecmu.eCMU
       init_args:
         n_fft: 4096
-        hidden_size: 512
+        hidden_channels: 256
         max_bins: 1487
         nb_channels: 2
         nb_layers: 3
+        nb_heads: 8
     criterion: 
-      class_path: eCMU.loss.freq.MDLoss
+      class_path: core.loss.freq.MDLoss
       init_args:
         mcoeff: 10
     transforms:
-    - class_path: eCMU.augment.SpeedPerturb
+    - class_path: core.augment.SpeedPerturb
       init_args:
         orig_freq: 44100
         speeds: 
@@ -91,7 +92,7 @@ model:
         - 100
         - 110
         p: 0.2
-    - class_path: eCMU.augment.RandomPitch
+    - class_path: core.augment.RandomPitch
       init_args:
         semitones:
         - -1
@@ -129,4 +130,4 @@ optimizer:
   init_args:
     lr: 0.0001
     weight_decay: 0.00001
-ckpt_path: null # "/home/eCMU/eMUC_cp/vocals-ema/best.ckpt"
+ckpt_path: null # "/home/core/eMUC_cp/vocals-ema/best.ckpt"
