@@ -9,14 +9,11 @@ or the newest SDR definition from the MDX 2021 competition (this one will
 be reported as `nsdr` for `new sdr`).
 """
 
-from concurrent import futures
+from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import musdb
 import museval
-import torch as th
-import logging
 
-import random
 import torch
 from torch.utils.data import DataLoader
 
@@ -25,54 +22,32 @@ import argparse
 import json
 from datetime import datetime
 import os
+import time
 
 
-
-# import dataset as module_data
-# import loss as module_loss
-from eCMU import models as module_arch
 from utils import write_samples, tensorboard_add_sample, visualize
-import copy
 from tqdm import tqdm
-from jsonschema import validate
 from pathlib import Path
 import soundfile as sf
 from tqdm.contrib.concurrent import process_map
-import yaml
-from ml_collections import ConfigDict
-from eCMU.models.separator import MusicSeparationModel
+from core.models.separator import MusicSeparationModel
 from main import MyLightningCLI
 
-from eCMU.models.transformer import OpenUnmix
-from eCMU.loss.time import SDR
+from core.models.ecmu import eCMU
+from core.loss.time import SDR
 
-def new_sdr(references, estimates):
-    """
-    Compute the SDR according to the MDX challenge definition.
-    Adapted from AIcrowd/music-demixing-challenge-starter-kit (MIT license)
-    """
-    assert references.dim() == 4
-    assert estimates.dim() == 4
-    delta = 1e-7  # avoid numerical errors
-    num = th.sum(th.square(references), dim=(2, 3))
-    den = th.sum(th.square(references - estimates), dim=(2, 3))
-    num += delta
-    den += delta
-    scores = 10 * th.log10(num / den)
-    return scores
 
 sdr = SDR()
-def eval_track(references, estimates, win, hop, compute_sdr=False):
-    # new_scores = new_sdr(references, estimates)[0]
+
+def eval_track(references, estimates, windown_size, hop_size, compute_chunk_sdr=False):
     new_scores = (
-            sdr(estimates.view(-1, *estimates.shape[-2:]), references.view(-1, *references.shape[-2:]))
-           
+            sdr(estimates.view(-1, *estimates.shape[-2:]), references.view(-1, *references.shape[-2:]))   
     )
 
     references = references.squeeze(0).transpose(1, 2).double()
     estimates = estimates.squeeze(0).transpose(1, 2).double()
 
-    if not compute_sdr:
+    if not compute_chunk_sdr:
         return None, new_scores
     else:
         references = references.cpu().numpy()
@@ -81,17 +56,17 @@ def eval_track(references, estimates, win, hop, compute_sdr=False):
         scores = museval.metrics.bss_eval(
             references, estimates,
             compute_permutation=False,
-            window=win,
-            hop=hop,
+            window=windown_size,
+            hop=hop_size,
             framewise_filters=False,
             bsseval_sources_version=False)[:-1]
 
         return scores, new_scores
 
-def help_eval(index):
-    track = test_set.tracks[index]
+def read_audio(track, sources, src_rate):
     references = []
 
+    # read stem audios
     for target in sources:
         y, _ = sf.read(
             str(track.sources[target]), frames=int(track.duration)*src_rate, start=0,
@@ -101,47 +76,15 @@ def help_eval(index):
         references.append(y)
     
     references = torch.stack(references).unsqueeze(0)
-    return references
-    # for target in sources:
-    #     y, _ = sf.read(
-    #         f'{output_dir}/{track.name}/{target}.wav', frames=int(track.duration)*src_rate, start=0,
-    #         dtype='float32', fill_value=0.
-    #     )
-    #     y = torch.as_tensor(y.T, dtype=torch.float32)
-    #     estimates.append(y)
-    # print('1')
-    # estimates = torch.stack(estimates).unsqueeze(0)
-    # return eval_track(references, estimates, win=win, hop=hop, compute_sdr=compute_sdr)
 
-def separate(model, index):
-    track = test_set.tracks[index]
-    # if index != 28:
-    #     continue
-    # else:
-    #     print(track.name)
-    # if track.name not in ['PR - Happy Daze', 'Enda Reilly - Cur An Long Ag Seol', 'Skelpolu - Resurrection', 'Lyndsey Ollard - Catching Up', 'PR - Oh No']:
-    #     continue
-        
-    mix, _ = sf.read(
+    # read mixture audio
+    mixture, _ = sf.read(
                 str(track.path), frames=int(track.duration)*src_rate, start=0,
                 dtype='float32', fill_value=0.
             )
-    mix = torch.as_tensor(mix.T, dtype=torch.float32).cuda()
+    mixture = torch.as_tensor(mixture.T, dtype=torch.float32)
+    return mixture, references
 
-    estimates = model.seperate(mix[None,...])
-
-    
-
-    # for k, target in enumerate(sources):
-    #     # Path(f'{output_dir}/{target}/{track.name}').mkdir(parents=True, exist_ok=True)
-    #     # sf.write(f'{output_dir}/{target}/{track.name}/predict.wav', estimates[0][k].T.numpy(), src_rate)
-    #     # sf.write(f'{output_dir}/{target}/{track.name}/gt.wav', references[0][k].T.numpy(), src_rate)
-
-    # for k in range(4):
-    #     Path(f'{output_dir}/{track.name}').mkdir(parents=True, exist_ok=True)
-    #     sf.write(f'{output_dir}/{track.name}/{k}.wav', estimates[0][k].T.numpy(), src_rate)
-  
-    return estimates
 def compute_score(tracks, sources):
     result = {}
 
@@ -164,109 +107,16 @@ def compute_score(tracks, sources):
             avg_of_medians += median / len(sources)
         result[metric_name.lower()] = avg
         result[metric_name.lower() + "_med"] = avg_of_medians
-    print(result)
-
-    with open(f'{json_folder}/result.json', 'w') as f:
-        json.dump(result, f)
 
     return result
 
-def evaluate1(model, compute_sdr=False):
+def evaluate(model, windown_size=44100, hop_size=44100, compute_chunk_SDR=False):
     """
     Evaluate model using museval.
     compute_sdr=False means using only the MDX definition of the SDR, which
     is much faster to evaluate.
     """
-    tracks = {}
-
-    for index in tqdm(range(len(test_set))):
-        track = test_set.tracks[index]
-        track_name = track.name
-        # if track_name not in ["Side Effects Project - Sing With Me", "Tom McKenzie - Directions"]:
-        #     continue
-        estimates = separate(model, index)
-        # estimates = torch.stack([estimates, estimates], axis=1)
-        references = help_eval(index)
-
-        # print(estimates.shape, references.shape)
-        # print(estimates[:,0])
-        # print(estimates[:,1])
-
-        scores, nsdrs = eval_track(references, estimates, win=win, hop=hop, compute_sdr=compute_sdr)
-
-        tracks[track_name] = {}
-        print(track_name, nsdrs, nsdrs.mean())
-        for idx, target in enumerate(sources):
-            tracks[track_name][target] = {'nsdr': [float(nsdrs[idx])]}
-    
-            
-        if scores is not None:
-            (sdr, isr, sir, sar) = scores
-            for idx, target in enumerate(sources):
-                values = {
-                    "SDR": sdr[idx].tolist(),
-                    # "SIR": sir[idx].tolist(),
-                    # "ISR": isr[idx].tolist(),
-                    # "SAR": sar[idx].tolist()
-                }
-                tracks[track_name][target].update(values)
-
-    compute_score(tracks, sources)
- 
-
-
-def dump_report_materials(model, compute_sdr=False):
-    """
-    Evaluate model using museval.
-    compute_sdr=False means using only the MDX definition of the SDR, which
-    is much faster to evaluate.
-    """
-    tracks = {}
-    sources = model.targets
-    examples = {"good": ['Al James - Schoolboy Facination', 'AM Contra - Heart Peripheral'], "bad": ['PR - Happy Daze', 'Skelpolu - Resurrection']}
-    for index in tqdm(range(len(test_set))):
-        track = test_set.tracks[index]
-        track_name = track.name
-        if track.name not in (examples["good"]+examples["bad"]):
-            continue
-        estimates = separate(model, index).to(device)
-        references = help_eval(index).to(device)
-
-        scores, nsdrs = eval_track(references, estimates, win=win, hop=hop, compute_sdr=compute_sdr)
-
-        tracks[track_name] = {}
-        print(track_name, nsdrs)
-        for idx, target in enumerate(sources):
-            tracks[track_name][target] = {'nsdr': [float(nsdrs[idx])]}
-    
-            
-        if scores is not None:
-            (sdr, isr, sir, sar) = scores
-            for idx, target in enumerate(sources):
-                values = {
-                    "SDR": sdr[idx].tolist(),
-                    # "SIR": sir[idx].tolist(),
-                    # "ISR": isr[idx].tolist(),
-                    # "SAR": sar[idx].tolist()
-                }
-                tracks[track_name][target].update(values)
-
-        src_rate = 44100
-        t1, t2 = 20*src_rate, 26*src_rate
-        mix, _ = sf.read(
-                    str(track.path), frames=6*src_rate, start=t1,
-                    dtype='float32', fill_value=0.
-                )
-        
-        for k, target in enumerate(sources):
-            Path(f'{output_dir}/{track.name}/{target}').mkdir(parents=True, exist_ok=True)
-            sf.write(f'{output_dir}/{track.name}/{target}/pred.wav', estimates[0][k][..., t1:t2].cpu().T.numpy(), src_rate)
-            sf.write(f'{output_dir}/{track.name}/{target}/gt.wav', references[0][k][..., t1:t2].cpu().T.numpy(), src_rate)
-            sf.write(f'{output_dir}/{track.name}/mix.wav', mix, src_rate)
-  
-        visualize(sources, (mix.T, references.cpu().numpy()[0], estimates.cpu().numpy()[0]), f'{output_dir}/{track.name}',t1, t2)
-
-    compute_score(tracks, sources)
+    pass
  
 
 # parser = argparse.ArgumentParser(description='SS Trainer')
@@ -277,49 +127,85 @@ def dump_report_materials(model, compute_sdr=False):
 
 # args = parser.parse_args()
 
+def initialize(cli):
+    save_pretrain = False
+    model = cli.model.eval().cuda()
+    ckpt = cli.config['ckpt_path']
+    print("Loading model from ckpt: ", ckpt)
+    checkpoint = torch.load(cli.config['ckpt_path'], map_location='cuda', weights_only=True)
 
-save_pretrain = True
-cli = MyLightningCLI(run=False)
-model = cli.model.eval().cuda()
-ckpt = cli.config['ckpt_path']
-print(ckpt)
-checkpoint = torch.load(cli.config['ckpt_path'], map_location='cuda')
-
-if "EMACallback" in checkpoint['callbacks']:
-    print("load from ema")
-    model.model.load_state_dict(checkpoint['callbacks']['EMACallback']['state_dict_ema'], strict=False)
-else:
-    model.load_state_dict(checkpoint['state_dict'], strict=False)
+    if "EMACallback" in checkpoint['callbacks']:
+        model.model.load_state_dict(checkpoint['callbacks']['EMACallback']['state_dict_ema'], strict=False)
+    else:
+        model.load_state_dict(checkpoint["state_dict"], strict=True)
 
 
+    separator = model # MusicSeparationModel(**params)
+    test_set = musdb.DB("/home/datasets/musdb", subsets=["test"], is_wav=True)
+    # test_set = musdb.DB("../musdb", subsets=["train"], split="valid", is_wav=True)
 
-# model = OpenUnmix(
-#             nb_bins=4096 // 2 + 1, nb_channels=2, hidden_size=512, max_bin=1487
-#         )
-# ckpt = "/home/ec2-user/.cache/torch/hub/checkpoints/vocals-b62c91ce.pth"
-# checkpoint = torch.load(ckpt, map_location='cuda')
-# model.model.load_state_dict(checkpoint, strict=False)
+    # output_dir = "results/samples"
+    # Path(output_dir).mkdir(parents=True, exist_ok=True)
+    model_ver = ".".join(ckpt.split("/")[-2:])
+    json_folder = f'results/test/{model_ver}'
+    Path(json_folder).mkdir(parents=True, exist_ok=True)
 
-separator = model # MusicSeparationModel(**params)
-test_set = musdb.DB("../musdb", subsets=["test"], is_wav=True)
-# test_set = musdb.DB("../musdb", subsets=["train"], split="valid", is_wav=True)
-output_dir = "results/samples"
-Path(output_dir).mkdir(parents=True, exist_ok=True)
+    if save_pretrain:
+        print(ckpt+"pre")
+        torch.save(model.model.state_dict(), ckpt+"pre")
+    
+    return separator, test_set, json_folder
 
-model_ver = ".".join(ckpt.split("/")[-2:])
-json_folder = f'results/test/{model_ver}'
-if save_pretrain:
-    print(ckpt+"pre")
-    torch.save(model.model.state_dict(), ckpt+"pre")
-Path(json_folder).mkdir(parents=True, exist_ok=True)
-src_rate = 44100
+def main():
+    cli = MyLightningCLI(run=False)
+    model, test_set, json_folder = initialize(cli)
+    src_rate = 44100
 
-win = int(1. * src_rate)
-hop = int(1. * src_rate)
-print(model.targets)
-sources = list(model.targets.keys()) # model.targets
-print(sources)
+    sources = list(model.targets.keys())
+    print(sources)
+    b = time.time()
+
+    pool = ThreadPoolExecutor(16)
+    kwargs = {
+        "windown_size": int(1. * src_rate),
+        "hop_size": int(1. * src_rate),
+        "compute_chunk_sdr": True
+    }
+    tracks = {}
+    futures = []
+    for index in tqdm(range(len(test_set)), desc="Separate:"):
+        track = test_set.tracks[index]
+        track_name = track.name
+        mixture, references = read_audio(track, sources, src_rate)
+        estimates = model.separate(mixture[None,...].cuda())
+
+        future = pool.submit(eval_track, references, estimates, **kwargs)
+        futures.append((future, track_name))
+
+    futures = tqdm(futures, desc="Compute score:")
+    for future, track_name in futures:
+        scores, nsdrs = future.result()
+        tracks[track_name] = {}
+
+        for idx, target in enumerate(sources):
+            tracks[track_name][target] = {'nsdr': [float(nsdrs[idx])]}
+    
+        if scores is not None:
+            (sdr, isr, sir, sar) = scores
+            for idx, target in enumerate(sources):
+                values = {
+                    "SDR": sdr[idx].tolist(),
+                    # "SIR": sir[idx].tolist(),
+                    # "ISR": isr[idx].tolist(),
+                    # "SAR": sar[idx].tolist()
+                }
+                tracks[track_name][target].update(values)
+
+    results = compute_score(tracks, sources)
+    print(results)
+    with open(f'{json_folder}/result.json', 'w') as f:
+        json.dump(results, f)
+    print(time.time() - b)
 
 if __name__ == "__main__":
-    # dump_report_materials(separator, compute_sdr=False)
-    evaluate1(separator, compute_sdr=True)
+   main()

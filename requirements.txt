@@ -12,4 +12,3 @@ pyloudnorm==0.1.1
 pedalboard==0.9.16
 resampy==0.4.3
 torchinfo==1.8.0
-ml_collections==0.1.1
