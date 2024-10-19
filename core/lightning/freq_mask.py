@@ -10,91 +10,8 @@ from ..loss.time import SDR
 from ..loss.freq import FLoss
 from ..augment import CudaBase
 
-from ..utils import MWF
-import museval
-from filtering import wiener
+from ..utils import MWF, padding, SOURCES
 
-def compute_score(estimates, references):
-    win = 44100
-    hop = 44100
-    references = references.squeeze(0).transpose(1, 2).double()
-    estimates = estimates.squeeze(0).transpose(1, 2).double()
-    references = references.cpu().numpy()
-    estimates = estimates.cpu().numpy()
-
-    sdr,_,_,_ = museval.metrics.bss_eval(
-        references, estimates,
-        compute_permutation=False,
-        window=win,
-        hop=hop,
-        framewise_filters=False,
-        bsseval_sources_version=False)[:-1]
-    print(sdr.shape, sdr)
-    return sdr[0]
-    
-def padding(x, length):
-    offsets = length - x.shape[-1]
-    left_pad = offsets // 2
-    right_pad = offsets - left_pad
-
-    return left_pad, right_pad, torch.nn.functional.pad(x, (left_pad, right_pad))
-
-def on_load_checkpoint1(model, checkpoint):
-    state_dict = checkpoint.copy()
-    model_state_dict = model.state_dict()
-
-    is_changed = False
-    for k in checkpoint.keys():
-        # print(k.split("model.")[0])
-        o = k.split("model.")[-1]
-        if o in model_state_dict:
-
-            if state_dict[k].shape != model_state_dict[o].shape:
-                print(f"Skip loading parameter: {k}, "
-                            f"required shape: {model_state_dict[o].shape}, "
-                            f"loaded shape: {state_dict[k].shape}")
-                state_dict[k] = model_state_dict[o]
-                is_changed = True
-        else:
-            print(f"Dropping parameter {k}")
-            state_dict.pop(k)
-            is_changed = True
-
-    if is_changed:
-        checkpoint.pop("optimizer_states", None)
-
-    return state_dict
-
-class STFT:
-    def __init__(self, n_fft, hop_length, dim_f):
-        self.n_fft = n_fft
-        self.hop_length = hop_length
-        self.window = torch.hann_window(window_length=n_fft, periodic=True)        
-        self.dim_f = dim_f
-    
-    def __call__(self, x):
-        window = self.window.to(x.device)
-        batch_dims = x.shape[:-2]
-        c, t = x.shape[-2:]
-        x = x.reshape([-1, t])
-        x = torch.stft(x, n_fft=self.n_fft, hop_length=self.hop_length, window=window, center=True, return_complex=True)
-        x = x.reshape([*batch_dims,c,x.shape[-2],-1])
-
-        return x[...,:self.dim_f,:]
-
-    def inverse(self, x):
-        window = self.window.to(x.device)
-        batch_dims = x.shape[:-3]
-        c,f,t = x.shape[-3:]
-        n = self.n_fft//2+1
-        f_pad = torch.zeros([*batch_dims,c,n-f,t]).to(x.device)
-        x = torch.cat([x, f_pad], -2)
-        x = x.reshape([*batch_dims,-1,2,n,t]).reshape([-1,n,t]) # [B,F,T]
-        x = torch.istft(x, n_fft=self.n_fft, hop_length=self.hop_length, window=window, center=True)
-        x = x.reshape([*batch_dims,2,-1])
-
-        return x
-    
 
 class MaskPredictor(pl.LightningModule):
     def __init__(
@@ -135,7 +52,7 @@ class MaskPredictor(pl.LightningModule):
             transforms = []
  
         self.transforms = nn.Sequential(*transforms)
-        self.sources = ["drums", "bass", "other", "vocals"]
+        self.sources = SOURCES
 
         self.register_buffer(
             "targets_idx",
@@ -190,7 +107,7 @@ class MaskPredictor(pl.LightningModule):
         x, y = batch
         y = y[:, self.targets_idx].cpu()
 
-        y_hat = self.seperate(x)
+        y_hat = self.separate(x)
         
 
         loss, values = 0, {}
@@ -232,7 +149,7 @@ class MaskPredictor(pl.LightningModule):
         segment *= sampling_rate 
         stride = int((1-overlap) * segment)
         
-        nb_sources = len(self.nb_tagets)
+        nb_sources = self.nb_tagets
         batch, channels, length = x.shape
         offsets = range(0, length, stride)
 

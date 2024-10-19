@@ -1,2 +1,4 @@
 from .mwf import MWF
-SOURCES = ["drums", "bass", "other", "vocals"]
+from .utils import padding
+
+SOURCES = ["vocals", "drums", "bass", "other"]
