@@ -56,11 +56,23 @@ class CLoss(FLoss):
         return loss, {"loss_f": loss_f.item(), "loss_t": loss_t.item()}
 
 class MDLoss(FLoss):
+    """Multi-Domain Loss (MDL)"""
     def __init__(self, mcoeff=10):
         super().__init__()
         self.mcoeff = mcoeff
 
     def _core_loss(self, pred_wave, target_wave, pred_spec, target_spec, mixture_wave):
+        """Calculate the multi-domain loss (MDL)
+        Args:
+            pred_wave (Tensor): estimated waveform (B, L)
+            target_wave (Tensor): target waveform (B, L)
+            pred_spec (ComplexFloat):  estimated spectrogram (B, 1, C, T, F)
+            target_spec (ComplexFloat): target spectrogram (B, 1, C, T, F)
+            mixture_wave (Tensor): mixture waveform (B, L)
+        Output:
+            loss: (B, 1)
+            loss_dict (loss_f, loss_t) 
+        """
         diff = pred_spec - target_spec
 
         real = diff.real.reshape(-1)
@@ -69,17 +81,58 @@ class MDLoss(FLoss):
         loss_f = mse / real.numel()
         
         batch_size, num_target, n_channels, length = pred_wave.shape
+
         # Fix Length
         mixture_wave = mixture_wave[..., :length].reshape(-1, length)
         target_wave = target_wave[..., :length].reshape(-1, length)
         pred_wave = pred_wave.view(-1, length)
-        loss_t = _sdr_loss_core(pred_wave, target_wave, mixture_wave.repeat(num_target, 1)) + 1.0
+        loss_t = wSDR(pred_wave, target_wave, mixture_wave.repeat(num_target, 1)) + 1.0
         loss = loss_f + self.mcoeff * loss_t
 
         return loss, {
             "loss_f": loss_f.item(),
             "loss_t": loss_t.item()
         }
+    
+def wSDR(y_hat, y, x):
+    """Calculate the weighted signal-to-distortion ratio (wSDR)
+    Args:
+        y_hat: estimated waveform (B, L)
+        y: target waveform (B, L)
+        x: mixture waveform (B, L)
+    Output:
+        wSDR: (B,) 
+    """
+    assert x.shape == y.shape == y_hat.shape  # (Batch, Len)
+
+    ns = x - y
+    ns_hat = x - y_hat
+
+    ns_norm = ns[:, None, :] @ ns[:, :, None]
+    ns_hat_norm = ns_hat[:, None, :] @ ns_hat[:, :, None]
+
+    y_norm = y[:, None, :] @ y[:, :, None]
+    y_hat_norm = y_hat[:, None, :] @ y_hat[:, :, None]
+    y_cross = y[:, None, :] @ y_hat[:, :, None]
+
+    y_norm, y_hat_norm, ns_norm, ns_hat_norm = (
+        y_norm.relu(),
+        y_hat_norm.relu(),
+        ns_norm.relu(),
+        ns_hat_norm.relu(),
+    )
+
+    alpha = y_norm / (ns_norm + y_norm + 1e-10)
+
+    # Target
+    sdr_cln = y_cross / (y_norm.sqrt() * y_hat_norm.sqrt() + 1e-10)
+
+    # Noise
+    num_noise = ns[:, None, :] @ ns_hat[:, :, None]
+    denom_noise = ns_norm.sqrt() * ns_hat_norm.sqrt()
+    sdr_noise = num_noise / (denom_noise + 1e-10)
+
+    return torch.mean(-alpha * sdr_cln - (1 - alpha) * sdr_noise)
 
 def bce_loss(msk_hat, gt_spec):
     assert msk_hat.shape == gt_spec.shape
@@ -167,39 +220,8 @@ def sdr_loss(pred, gt_time, mix):
     extend_gt = torch.cat(extend_gt, 0)
     extend_mix = mix.repeat(14, 1)
 
-    loss_sdr = _sdr_loss_core(extend_pred, extend_gt, extend_mix)
+    loss_sdr = wSDR(extend_pred, extend_gt, extend_mix)
 
     return 1.0 + loss_sdr
 
 
-def _sdr_loss_core(x_hat, x, y):
-    assert x.shape == y.shape == x_hat.shape  # (Batch, Len)
-
-    ns = y - x
-    ns_hat = y - x_hat
-
-    ns_norm = ns[:, None, :] @ ns[:, :, None]
-    ns_hat_norm = ns_hat[:, None, :] @ ns_hat[:, :, None]
-
-    x_norm = x[:, None, :] @ x[:, :, None]
-    x_hat_norm = x_hat[:, None, :] @ x_hat[:, :, None]
-    x_cross = x[:, None, :] @ x_hat[:, :, None]
-
-    x_norm, x_hat_norm, ns_norm, ns_hat_norm = (
-        x_norm.relu(),
-        x_hat_norm.relu(),
-        ns_norm.relu(),
-        ns_hat_norm.relu(),
-    )
-
-    alpha = x_norm / (ns_norm + x_norm + 1e-10)
-
-    # Target
-    sdr_cln = x_cross / (x_norm.sqrt() * x_hat_norm.sqrt() + 1e-10)
-
-    # Noise
-    num_noise = ns[:, None, :] @ ns_hat[:, :, None]
-    denom_noise = ns_norm.sqrt() * ns_hat_norm.sqrt()
-    sdr_noise = num_noise / (denom_noise + 1e-10)
-
-    return torch.mean(-alpha * sdr_cln - (1 - alpha) * sdr_noise)
