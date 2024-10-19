@@ -16,18 +16,20 @@ class EMACallback(Callback):
     If `use_ema_weights`, then the ema parameters of the network is set after training end.
     """
 
-    def __init__(self, decay=0.9999, use_ema_weights: bool = False):
+    def __init__(self, decay=0.9999, use_ema_weights: bool = False, start_ema_epoch: int = 500):
         self.decay = decay
         self.ema = None
         self.use_ema_weights = use_ema_weights
+        self.start_ema_epoch = start_ema_epoch
 
     def on_fit_start(self, trainer, pl_module):
         "Initialize `ModelEmaV2` from timm to keep a copy of the moving average of the weights"
-        self.ema = ModelEmaV2(pl_module.model, decay=self.decay, device=None)
+        self.ema = ModelEmaV2(pl_module.model, decay=0, device=None)
 
     def on_train_batch_end(
         self, trainer, pl_module, *args, **kwargs
-    ):
+    ):  
+        
         "Update the stored parameters using a moving average"
         # Update currently maintained parameters.
         self.ema.update(pl_module.model)
@@ -44,6 +46,8 @@ class EMACallback(Callback):
     def on_validation_end(self, trainer, pl_module):
         "Restore original parameters to resume training later"
         self.restore(pl_module.model.parameters())
+        if trainer.current_epoch == (self.start_ema_epoch - 1):
+            self.ema.decay = self.decay
 
     def on_train_end(self, trainer, pl_module):
         # update the LightningModule with the EMA weights
@@ -51,7 +55,7 @@ class EMACallback(Callback):
             self.copy_to(self.ema.module.parameters(), pl_module.model.parameters())
             msg = "Model weights replaced with the EMA version."
 
-
+        
     def state_dict(self) -> Dict[str, Any]:
         if self.ema is not None:
             return {"state_dict_ema": get_state_dict(self.ema, unwrap_model)}
