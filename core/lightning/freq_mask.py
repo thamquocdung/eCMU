@@ -102,13 +102,23 @@ class MaskPredictor(pl.LightningModule):
         model: nn.Module,
         criterion: FLoss,
         transforms: List[CudaBase] = None,
-        target_track: str = None,
         targets: Dict[str, None] = {},
         n_fft: int = 4096,
         hop_length: int = 1024,
         dim_f: int = 2048,
         **mwf_kwargs,
     ):
+        """Initialize MaskPredictor training pipeline.
+        Args:
+            model: Our main model (eCMU)
+            criterion: Loss function
+            transforms: List of audio agumentation functions
+            targets: List of target stems ([vocals])
+            n_fft: Window length
+            hop_length: Hop length
+            dim_f: Feature size of frequency-axis
+            **mwf_kwargs: Parameter dict for Multi-channel Wiener Filter (MWF)
+        """
         super().__init__()
 
         self.model = model
@@ -132,20 +142,30 @@ class MaskPredictor(pl.LightningModule):
         )
 
     def forward(self, x, length=None):
+        """Forward function
+        Args:
+            x (Tensor): 2-channels mixture waveform (B, 2, L) 
+        """
         X = self.spec(x)
         X_mag = X.abs()
         pred_mask = self.model(X_mag)
         Y = self.mwf(pred_mask, X)[:,0,...].unsqueeze(1)
-        pred = self.inv_spec(Y, length=length)
-        return pred
+        pred_wave = self.inv_spec(Y, length=length)
+        return pred_wave
     
 
     def training_step(self, batch, batch_idx):
+        """Training Step
+        Args:
+            batch (Tuple[Tensor, Tensor]): input batch
+                - x: mixture waveform (B, 2, L)
+                - y: target waveforms (B, 1, 2, L), num_targets = 1
+        """
         x, y = batch
         if len(self.transforms) > 0:
             y = self.transforms(y)
             x = y.sum(1)
-        y = y[:, self.targets_idx] # .squeeze(1)
+        y = y[:, self.targets_idx] 
         
         X = self.spec(x)
         Y = self.spec(y)
