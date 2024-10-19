@@ -4,20 +4,21 @@ trainer:
   callbacks:
   - class_path: pytorch_lightning.callbacks.ModelCheckpoint
     init_args:
-      dirpath: "checkpoints/bass-ema"
+      dirpath: "checkpoints/bass"
       save_top_k: 2
       monitor: 'avg_sdr'
       filename: '{epoch}-{avg_sdr:.3f}'
       save_last: true
       mode: 'max'
-  - class_path: callbacks.EMACallback
+  - class_path: core.callbacks.EMACallback
     init_args:
       decay: 0.9999
       use_ema_weights: false
+      start_ema_epoch: 600
   logger:
   - class_path: pytorch_lightning.loggers.TensorBoardLogger
     init_args:
-      save_dir: "tb_logs/ema"
+      save_dir: "tb_logs/pretrain"
       name: "bass"
   enable_checkpointing: true
   default_root_dir: null
@@ -68,23 +69,22 @@ trainer:
   inference_mode: true
 
 model:
-  class_path: eCMU.lightning.freq_mask.MaskPredictor
+  class_path: core.lightning.freq_mask.MaskPredictor
   init_args:
     model:
-      class_path: eCMU.models.transformer.Net
+      class_path: core.models.ecmu.eCMU
       init_args:
         n_fft: 4096
         hidden_channels: 256
         max_bins: 1487
         nb_channels: 2
         nb_layers: 3
-        nb_heads: 8
     criterion: 
-      class_path: eCMU.loss.freq.MDLoss
+      class_path: core.loss.freq.MDLoss
       init_args:
         mcoeff: 10
     transforms:
-    - class_path: eCMU.augment.SpeedPerturb
+    - class_path: core.data.augment_cuda.SpeedPerturb
       init_args:
         orig_freq: 44100
         speeds: 
@@ -92,7 +92,7 @@ model:
         - 100
         - 110
         p: 0.2
-    - class_path: eCMU.augment.RandomPitch
+    - class_path: core.data.augment_cuda.RandomPitch
       init_args:
         semitones:
         - -1
@@ -110,18 +110,18 @@ model:
     alpha: 1.0
     n_iter: 1
 data:
-  class_path: data.lightning.MUSDB
+  class_path: core.data.lightning.MUSDB
   init_args:
-    root: /home/ec2-user/musdb
+    root: /home/datasets/musdb
     seq_duration: 6.0
     samples_per_track: 32
     random: true
     random_track_mix: true
     transforms:
-    - class_path: data.augment.RandomGain
-    - class_path: data.augment.RandomFlipPhase
-    - class_path: data.augment.RandomSwapLR
-    - class_path: data.augment.LimitAug
+    - class_path: core.data.augment.RandomGain
+    - class_path: core.data.augment.RandomFlipPhase
+    - class_path: core.data.augment.RandomSwapLR
+    - class_path: core.data.augment.LimitAug
       init_args:
         sample_rate: 44100
     batch_size: 4
@@ -130,4 +130,4 @@ optimizer:
   init_args:
     lr: 0.0001
     weight_decay: 0.00001
-ckpt_path: 'checkpoints/bass-ema/epoch=81-avg_sdr=5.574.ckpt'
+ckpt_path: null
