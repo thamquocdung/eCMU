@@ -77,16 +77,14 @@ class eCMU(nn.Module):
         )
         
 
-    def forward(self, mix_spec: torch.Tensor, is_training: bool=True):
+    def forward(self, mix_spec: torch.Tensor):
         """Forward
         Args:
             mix_spec (Tensor): Magnitude Mixture Spectrogram (B, 2, F, T)
-            is_training (bool): training or inference?
         Returns:
-            mask (Tensor): A Estimated mask for the target source (B, 1, 2, F, T) if is training
-            Y_hat (Tensor): Estimated spectrogram of the target source (B, 1, 2, F, T) if is inference
+            mask (Tensor): A Estimated mask for the target source (B, 1, 2, F, T)
         """
-        X = mix_spec.detach().clone()
+        # X = mix_spec.detach().clone()
         batch, channels, bins, frames = mix_spec.shape
         mix_spec = mix_spec[..., :self.max_bins, :]
 
@@ -107,10 +105,8 @@ class eCMU(nn.Module):
             batch, self.nb_sources, channels, bins, frames
         ) * self.output_scale.view(self.nb_sources, 1, -1, 1) + self.output_means.view(self.nb_sources, 1, -1, 1)
 
-        if is_training:
-            return mask.relu()
-        else:
-            return mask.relu()*X.unsqueeze(1)
+
+        return mask.relu()
             
 
 

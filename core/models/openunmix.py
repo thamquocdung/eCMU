@@ -172,7 +172,7 @@ class OpenUnmix(nn.Module):
 
 if __name__ == "__main__":
     x = torch.rand(4,2,2049,255)
-    net = Net(hidden_channels=256, max_bins=1487)
+    net = OpenUnmix(hidden_channels=256, max_bins=1487)
     print(sum(p.numel() for p in net.parameters()
               if p.requires_grad))
     y = net(x)

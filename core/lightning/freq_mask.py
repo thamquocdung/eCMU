@@ -57,24 +57,12 @@ class MaskPredictor(pl.LightningModule):
             "targets_idx",
             torch.tensor(sorted([self.sources.index(target) for target in targets])),
         )
-
-    def forward(self, x, length=None):
-        """Forward function
-        Args:
-            x (Tensor): 2-channels mixture waveform (B, 2, L) 
-        """
-        X = self.spec(x)
-        X_mag = X.abs()
-        pred_mask = self.model(X_mag)
-        Y = self.mwf(pred_mask, X)[:,0,...].unsqueeze(1)
-        pred_wave = self.inv_spec(Y, length=length)
-        return pred_wave
     
 
     def training_step(self, batch, batch_idx):
         """Training Step
         Args:
-            batch (Tuple[Tensor, Tensor]): input batch
+            batch (Tuple[Tensor, Tensor]): batch input
                 - x: mixture waveform (B, 2, L)
                 - y: target waveforms (B, 1, 2, L), num_targets = 1
         """
@@ -100,6 +88,7 @@ class MaskPredictor(pl.LightningModule):
         # values["loss"] = loss
         # self.log_dict(values, prog_bar=False, sync_dist=True)
         self.log("train/loss", loss, sync_dist=True, on_step=True, on_epoch=True, prog_bar=True)
+
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -143,7 +132,7 @@ class MaskPredictor(pl.LightningModule):
             overlap (Float[0,1]): Overlap ratio
             segment: Chunk size
         Returns:
-            y_hat (Tensor): Estimated target waveform (B, 1, 2, L)
+            y_hat (Tensor): Estimated target waveform (B, nb_sources, 2, L)
         """
         segment *= sampling_rate 
         stride = int((1-overlap) * segment)
@@ -162,7 +151,7 @@ class MaskPredictor(pl.LightningModule):
         for offset in offsets:
             chunk = x[..., offset:offset+segment]
             left_pad, right_pad, chunk_pad = padding(chunk, length=segment)
-            chunk_out =  self.forward(chunk_pad, length=chunk_pad.shape[-1])
+            chunk_out =  self.forward(chunk_pad)
 
             if left_pad > 0:
                 chunk_out = chunk_out[...,left_pad:]
@@ -180,7 +169,20 @@ class MaskPredictor(pl.LightningModule):
         y_hat /= sum_weight
 
         return y_hat
+    
+    def forward(self, x):
+        """Estimate target waveforms from chunk-level mixture
+        Args:
+            x (Tensor): 2-channels mixture waveform (B, 2, L) 
+        """
+        X = self.spec(x)
+        X_mag = X.abs()
+        pred_mask = self.model(X_mag)
+        Y = self.mwf(pred_mask, X)[:,0,...].unsqueeze(1)
+        pred_wave = self.inv_spec(Y, length=x.shape[-1])
 
+        return pred_wave
+    
     def test_step(self, batch, batch_idx):
         x, y = batch
         y = y[:, self.targets_idx] #.squeeze(1)
@@ -196,10 +198,7 @@ class MaskPredictor(pl.LightningModule):
             .mean(0)
         )
         values["test_sdr"] = sdrs.mean().item()
-        print(values["test_sdr"])
-        # for i, t in enumerate(self.targets_idx):
-        #     values[f"{self.sources[t]}_sdr"] = sdrs[i].item()
-        # values["avg_sdr"] = sdrs.mean().item()
+
         return 0, values
     
     def test_epoch_end(self, outputs) -> None:
