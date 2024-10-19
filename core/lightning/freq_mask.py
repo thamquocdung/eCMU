@@ -125,6 +125,7 @@ class MaskPredictor(pl.LightningModule):
 
         self.criterion = criterion
         self.targets = targets
+        self.nb_tagets = len(targets)
         self.sdr = SDR()
         self.mwf = MWF(**mwf_kwargs)
         self.spec = Spectrogram(n_fft=n_fft, hop_length=hop_length, power=None)
@@ -218,30 +219,34 @@ class MaskPredictor(pl.LightningModule):
         # self.log("val_loss", avg_loss, prog_bar=True, sync_dist=True)
         self.log_dict(avg_values, prog_bar=False, sync_dist=True)
 
-    def seperate(self, x):
-        overlap = 0.25
-        segment = 18*44100 # 127*2048 
+    def separate(self, x, overlap=0.25, segment=18, sampling_rate=44100):
+        """Apply separate function for the long input (i.e: a whole song sample)
+           using overlap-add algorithm
+        Args:
+            x (Tensor): Mixture waveform (B, 2, L) 
+            overlap (Float[0,1]): Overlap ratio
+            segment: Chunk size
+        Returns:
+            y_hat (Tensor): Estimated target waveform (B, 1, 2, L)
+        """
+        segment *= sampling_rate 
         stride = int((1-overlap) * segment)
-        samplerate = 44100
-        nb_sources = 1
+        
+        nb_sources = len(self.nb_tagets)
         batch, channels, length = x.shape
         offsets = range(0, length, stride)
 
-        num_batch = len(offsets) // 4 + 1
-
-        out = torch.zeros(batch, nb_sources, channels, length)
+        y_hat = torch.zeros(batch, nb_sources, channels, length)
         sum_weight = torch.zeros(length)
         weight = torch.cat([torch.arange(1, segment // 2 + 1),
                         torch.arange(segment - segment // 2, 0, -1)])
         weight = (weight / weight.max())
-        # weight = torch.hann_window(segment)
         assert len(weight) == segment
 
         for offset in offsets:
             chunk = x[..., offset:offset+segment]
             left_pad, right_pad, chunk_pad = padding(chunk, length=segment)
             chunk_out =  self.forward(chunk_pad, length=chunk_pad.shape[-1])
-            # chunk_out = self.seperate1(chunk_pad)[:, 0, ...]
 
             if left_pad > 0:
                 chunk_out = chunk_out[...,left_pad:]
@@ -251,14 +256,14 @@ class MaskPredictor(pl.LightningModule):
             chunk_out = chunk_out.cpu().detach()
             chunk_length = chunk_out.shape[-1]
             w = weight[:chunk_length]
-            out[..., offset:offset + segment] += (w * chunk_out)
+            y_hat[..., offset:offset + segment] += (w * chunk_out)
             sum_weight[offset:offset + segment] += w #.to(mix.device)
             offset += segment
 
         assert sum_weight.min() > 0
-        out /= sum_weight
+        y_hat /= sum_weight
 
-        return out
+        return y_hat
 
     def test_step(self, batch, batch_idx):
         x, y = batch
