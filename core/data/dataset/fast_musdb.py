@@ -1,6 +1,6 @@
 import torchaudio
 from tqdm import tqdm
-from data.dataset import BaseDataset
+from core.data.dataset import BaseDataset
 import musdb
 import os
 import yaml
@@ -10,24 +10,6 @@ from typing import List
 from core.utils import SOURCES
 
 __all__ = ["FastMUSDB"]
-
-
-class FastMUSDB(BaseDataset):
-    def __init__(
-        self,
-        root: str,
-        subsets: List[str] = ["train", "test"],
-        split: str = None,
-        **kwargs
-    ):
-        tracks, track_lengths = load_tracks(root, subsets, split)
-        super().__init__(
-            **kwargs,
-            tracks=tracks,
-            track_lengths=track_lengths,
-            sources=SOURCES,
-            mix_name="mixture",
-        )
 
 
 def load_tracks(root, subsets=None, split=None):
@@ -72,9 +54,29 @@ def load_tracks(root, subsets=None, split=None):
 
     return tracks, track_lengths
 
+
+class FastMUSDB(BaseDataset):
+    def __init__(
+        self,
+        root: str,
+        subsets: List[str] = ["train", "test"],
+        split: str = None,
+        **kwargs
+    ):
+        tracks, track_lengths = load_tracks(root, subsets, split)
+        super().__init__(
+            **kwargs,
+            tracks=tracks,
+            track_lengths=track_lengths,
+            sources=SOURCES,
+            mix_name="mixture",
+        )
+
+
+
 if __name__ == "__main__":
     train_dataset = FastMUSDB(
-                root='/home/ec2-user/musdb',
+                root='/home/datasets/musdb',
                 subsets=["train"],
                 seq_duration=6.0,
                 samples_per_track=32,
@@ -84,14 +86,14 @@ if __name__ == "__main__":
                 split="train"
             )
     val_dataset = FastMUSDB(
-                root='/home/ec2-user/musdb',
+                root='/home/datasets/musdb',
                 subsets=["train"],
                 seq_duration=6.0,
                 samples_per_track=32,
                 split="valid"
             )
     test_dataset = FastMUSDB(
-                root='/home/ec2-user/musdb',
+                root='/home/datasets/musdb',
                 subsets=["test"],
                 seq_duration=-1)
     print(len(test_dataset))

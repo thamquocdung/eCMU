@@ -2,7 +2,6 @@ from torch.utils.data import Dataset
 import torch
 import random
 import numpy as np
-import torchaudio
 from typing import Optional, Callable, List, Tuple
 from pathlib import Path
 import soundfile as sf
@@ -18,13 +17,25 @@ class BaseDataset(Dataset):
         tracks: List[Path],
         track_lengths: List[int],
         sources: List[str],
-        mix_name: str = "mix",
+        mix_name: str = "mixture",
         seq_duration: float = 6.0,
         samples_per_track: int = 64,
         random: bool = False,
         random_track_mix: bool = False,
         transform: Optional[Callable] = None,
     ):
+        """Initialize BaseDataset
+        Args:
+            tracks: List of track paths
+            track_lengths: List of corresponding track durations
+            sources: List of component stems (["vocals", "drums", "bass", "other"])
+            mix_name: Name of mixture track
+            seq_duration: Duration of each chunk (Note: seq_duration=-1 means loading full song)
+            samples_per_track: Number sample chunks for each track
+            random: Random the start time of each chunk or not
+            random_track_mix: Randomly mix the component stems from diffent tracks to create new mixture
+            transforms: List of Audio Agumentation functions
+        """
         super().__init__()
         self.tracks = tracks
         self.track_lengths = track_lengths
@@ -73,9 +84,6 @@ class BaseDataset(Dataset):
         stems = []
         if self.seq_duration <= 0:
             folder_name = self.tracks[index]
-            # x = torchaudio.load(
-            #     folder_name / f"{self.mix_name}.wav",
-            # )[0]
             x = sf.read(
                     folder_name / f"{self.mix_name}.wav",
                     dtype='float32', fill_value=0.
@@ -83,7 +91,6 @@ class BaseDataset(Dataset):
             x = torch.as_tensor(x, dtype=torch.float32)
             for s in self.sources:
                 source_name = folder_name / (s + ".wav")
-                # audio = torchaudio.load(source_name)[0]
                 audio = sf.read(
                     source_name,
                     dtype='float32', fill_value=0.
@@ -105,11 +112,7 @@ class BaseDataset(Dataset):
                         track_idx
                     ], self._get_random_start(self.track_lengths[track_idx])
                 source_name = folder_name / (s + ".wav")
-                # audio = torchaudio.load(
-                #     source_name,
-                #     num_frames=self.segment,
-                #     frame_offset=chunk_start,
-                # )[0]
+
                 audio = sf.read(
                     source_name, frames=self.segment, start=chunk_start,
                     dtype='float32', fill_value=0.
@@ -119,11 +122,6 @@ class BaseDataset(Dataset):
             if self.random_track_mix and self.random:
                 x = sum(stems)
             else:
-                # x = torchaudio.load(
-                #     folder_name / f"{self.mix_name}.wav",
-                #     num_frames=self.segment,
-                #     frame_offset=chunk_start,
-                # )[0]
                 x = sf.read(
                     folder_name / f"{self.mix_name}.wav",
                     frames=self.segment,

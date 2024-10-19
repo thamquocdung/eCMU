@@ -83,7 +83,7 @@ model:
       init_args:
         mcoeff: 10
     transforms:
-    - class_path: core.augment.SpeedPerturb
+    - class_path: core.data.augment_cuda.SpeedPerturb
       init_args:
         orig_freq: 44100
         speeds: 
@@ -91,7 +91,7 @@ model:
         - 100
         - 110
         p: 0.2
-    - class_path: core.augment.RandomPitch
+    - class_path: core.data.augment_cuda.RandomPitch
       init_args:
         semitones:
         - -1
@@ -109,7 +109,7 @@ model:
     alpha: 1.0
     n_iter: 1
 data:
-  class_path: data.lightning.MUSDB
+  class_path: core.data.lightning.MUSDB
   init_args:
     root: /home/datasets/musdb
     seq_duration: 6.0
@@ -117,10 +117,10 @@ data:
     random: true
     random_track_mix: true
     transforms:
-    - class_path: data.augment.RandomGain
-    - class_path: data.augment.RandomFlipPhase
-    - class_path: data.augment.RandomSwapLR
-    - class_path: data.augment.LimitAug
+    - class_path: core.data.augment.RandomGain
+    - class_path: core.data.augment.RandomFlipPhase
+    - class_path: core.data.augment.RandomSwapLR
+    - class_path: core.data.augment.LimitAug
       init_args:
         sample_rate: 44100
     batch_size: 4

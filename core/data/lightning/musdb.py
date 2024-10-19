@@ -4,8 +4,8 @@ import pytorch_lightning as pl
 from typing import List
 
 
-from data.dataset import FastMUSDB
-from data.augment import CPUBase
+from core.data.dataset import FastMUSDB
+from core.data.augment import CPUBase
 
 
 class MUSDB(pl.LightningDataModule):
@@ -19,6 +19,20 @@ class MUSDB(pl.LightningDataModule):
         transforms: List[CPUBase] = None,
         batch_size: int = 16
     ):
+        """Initialize MUSDB Loader
+        Args:
+            root: Data root path
+            seq_duration: Duration of each chunk (Note: seq_duration=-1 means loading full song)
+            samples_per_track: Number sample chunks for each track 
+            random: Random the start time of each chunk or not
+            random_track_mix: Randomly mix the component stems from diffent tracks to create new mixture
+            transforms: List of Audio Agumentation functions
+            batch_size: Batch size
+        Returns:
+            train_dataset: chunk-level dataset
+            val_dataset: full-song dataset
+            test_dataset: full-song dataset
+        """
         super().__init__()
         self.save_hyperparameters(
             "root",
@@ -61,16 +75,10 @@ class MUSDB(pl.LightningDataModule):
                 split="valid"
             )
         if stage == "test":
-            # self.test_dataset = FastMUSDB(
-            #     root=self.hparams.root,
-            #     subsets=["test"],
-            #     seq_duration=-1,
-            # )
             self.test_dataset = FastMUSDB(
                 root=self.hparams.root,
-                subsets=["train"],
+                subsets=["test"],
                 seq_duration=-1,
-                split="valid"
             )
 
     def train_dataloader(self):

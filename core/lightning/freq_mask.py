@@ -6,10 +6,9 @@ from typing import List, Dict
 from torchaudio.transforms import Spectrogram, InverseSpectrogram
 import numpy as np
 
+from core.data.augment_cuda import CudaBase
 from ..loss.time import SDR
 from ..loss.freq import FLoss
-from ..augment import CudaBase
-
 from ..utils import MWF, padding, SOURCES
 
 
