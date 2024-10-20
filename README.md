@@ -31,7 +31,7 @@ pip install -r requirments.txt
 ## Evaluation
 
 ## Citations
-If you find eCMU useful, please consider citing as below:
+If you find our eCMU useful, please consider citing as below:
 ```bash
 @INPROCEEDINGS{dungtham2023eCMU,
   author={Tham, Quoc Dung and Nguyen, Duc Dung},
