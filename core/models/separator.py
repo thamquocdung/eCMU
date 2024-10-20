@@ -19,6 +19,7 @@ class MusicSeparationModel:
                 source_names: List[str],
                 n_fft: int = 4096,
                 hop_length: int = 1024,
+                device: int = None
     ):
         """Call for separating a mixture audio file into stems
         Args:
@@ -32,9 +33,20 @@ class MusicSeparationModel:
         self.models = {}
         self.source_names = source_names
         self.target_sr = 44100
+
+        
+        if device is None:
+            self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = device
+        
+        assert self.device in ["cuda:0", "cpu"], f"{self.device} is not supported!"
+        if self.device:
+            print("WARNING - Running on cpu takes much more time!")
+
         self.mwf = MWF()
-        self.spec = Spectrogram(n_fft=n_fft, hop_length=hop_length, power=None).cuda()
-        self.inv_spec = InverseSpectrogram(n_fft=n_fft, hop_length=hop_length).cuda()
+        self.spec = Spectrogram(n_fft=n_fft, hop_length=hop_length, power=None).to(self.device)
+        self.inv_spec = InverseSpectrogram(n_fft=n_fft, hop_length=hop_length).to(self.device)
 
         for src_name in source_names:
             ckpt_path = os.path.join(model_root, "weights", f"{src_name}.ckpt")
@@ -45,8 +57,11 @@ class MusicSeparationModel:
             
             ecmu_args = args["model"]["init_args"]["model"]["init_args"]
 
-            self.models[src_name] = eCMU(**ecmu_args).cuda()
-            checkpoint = torch.load(ckpt_path, map_location='cuda', weights_only=True)
+            self.models[src_name] = eCMU(**ecmu_args).to(self.device)
+            if self.device == "cpu":
+                checkpoint = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+            else:
+                checkpoint = torch.load(ckpt_path, map_location="cuda", weights_only=True)
 
             try:
                 self.models[src_name].load_state_dict(checkpoint['callbacks']['EMACallback']['state_dict_ema'], strict=False)
@@ -69,17 +84,19 @@ class MusicSeparationModel:
         print("# 🎤 🥁 Music Source Separation 🎸 🪗    #")
         print("#                                       #")
         print("#########################################")
+
+
         filename = os.path.basename(audio_path)[:-4]
-        mix, sr = sf.read(
-          audio_path,
-          dtype='float32', fill_value=0.)
+        mix, sr = sf.read(audio_path, dtype='float32', fill_value=0.)
         mix = mix.T
         print(f"---> Mixture duration: {round(mix.shape[-1]/sr, 2)}s - Sampling rate: {sr}Hz")
 
         if sr != self.target_sr:
             print("---> Resample mixture audio: {sr}Hz -> {self.target_sr}Hz")
             mix = librosa.resample(mix, orig_sr=sr, target_sr=self.target_sr)
-        mix = torch.tensor(mix).unsqueeze(0).cuda()
+        
+        
+        mix = torch.tensor(mix).unsqueeze(0).to(self.device)
 
         print(f"---> Separating mixture audio into {len(self.source_names)} stems ({', '.join(self.source_names)})")
         start_time = time.time()
@@ -132,7 +149,7 @@ class MusicSeparationModel:
             chunk_length = chunk_out.shape[-1]
             w = weight[:chunk_length]
             y_hat[..., offset:offset + segment] += (w * chunk_out)
-            sum_weight[offset:offset + segment] += w #.to(mix.device)
+            sum_weight[offset:offset + segment] += w
             offset += segment
 
         assert sum_weight.min() > 0
@@ -161,5 +178,4 @@ class MusicSeparationModel:
 
 if __name__ == "__main__":
     separator = MusicSeparationModel(model_root="/home/eCMU/eMUC_cp/all", source_names=["vocals", "drums", "bass", "others"])
-    separator("/home/datasets/musdb/test/Al James - Schoolboy Facination/mixture.wav")
-    
+    separator("/home/eCMU/static/samples/22_TaylorSwift.mp3")
