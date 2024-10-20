@@ -5,15 +5,16 @@
 </p>
 
 Our implementation was developed based on the [`sdx23-aimless`](https://github.com/aim-qmul/sdx23-aimless.git) framework.
+
+## Demo Page:
+🎼 You can remix songs and enjoy [here](https://thamquocdung.github.io/eCMU-demo/) 📻
+
 ## Abstract
 From our baseline [Open-Unmix](https://github.com/sigsep/open-unmix-pytorch) (UMX), we:
 - Attempt to build an affordable model to solve the music source separation (MSS) task in the spectral domain with limited computing resources.
 - Apply a differentiable Multi-channel Wiener Filter (MWF) into a mask-based prediction model to end-to-end estimated the complex spectrogram for each source.
 - Optimize the model by using the Multi-domain loss function on the public [`MUSDB18-HQ`](https://sigsep.github.io/datasets/musdb.html#musdb18-hq-uncompressed-wav) dataset.
 - Leverage the ability of Conformer blocks to capture both local and global feature dependencies on time and frequency axis.
-
-## Demo Page:
-🎼 You can remix songs and enjoy [here](https://thamquocdung.github.io/eCMU-demo/) 📻
 
 ## Installation
 - python 3.8+
