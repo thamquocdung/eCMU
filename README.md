@@ -1,12 +1,12 @@
 # eCMU
 <b>This is an Official implementation of eCMU: An Efficient Phase-aware Framework for Music Source Separation with Conformer (IEEE RIVF23) </b>
 <p align="center">
-  <img src="./statics/eCMU.png" width="100%"  alt="our pipeline"/>
+  <img src="./static/eCMU.png" width="100%"  alt="our pipeline"/>
 </p>
 
 Our implementation was developed based on the [`sdx23-aimless`](https://github.com/aim-qmul/sdx23-aimless.git) framework.
 ## Abstract
-From our baseline - [Open-Unmix](https://github.com/sigsep/open-unmix-pytorch) (UMX), we:
+From our baseline [Open-Unmix](https://github.com/sigsep/open-unmix-pytorch) (UMX), we:
 - Attempt to build an affordable model to solve the music source separation (MSS) task in the spectral domain with limited computing resources.
 - Apply a differentiable Multi-channel Wiener Filter (MWF) into a mask-based prediction model to end-to-end estimated the complex spectrogram for each source.
 - Optimize the model by using the Multi-domain loss function on the public [`MUSDB18-HQ`](https://sigsep.github.io/datasets/musdb.html#musdb18-hq-uncompressed-wav) dataset.
