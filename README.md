@@ -13,7 +13,7 @@ From our baseline [Open-Unmix](https://github.com/sigsep/open-unmix-pytorch) (UM
 - Leverage the ability of Conformer blocks to capture both local and global feature dependencies on time and frequency axis.
 
 ## Demo Page:
-🎼 You can remix songs and enjoy [here](https://thamquocdung.github.io/mss-demo/) 📻
+🎼 You can remix songs and enjoy [here](https://thamquocdung.github.io/eCMU-demo/) 📻
 
 ## Installation
 - python 3.8+
