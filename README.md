@@ -32,7 +32,7 @@ pip install -r requirments.txt
 
 ## Citations
 If you find our eCMU useful, please consider citing as below:
-```bash
+```
 @INPROCEEDINGS{dungtham2023eCMU,
   author={Tham, Quoc Dung and Nguyen, Duc Dung},
   booktitle={2023 RIVF International Conference on Computing and Communication Technologies (RIVF)}, 
