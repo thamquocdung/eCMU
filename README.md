@@ -1,7 +1,7 @@
 # eCMU (Coming soon!!!)
 <b>This is an Official implementation of eCMU: An Efficient Phase-aware Framework for Music Source Separation with Conformer (IEEE RIVF23) </b>
 <p align="center">
-  <img src="./static/eCMU.png" width="100%"  alt="our pipeline"/>
+  <img src="./assets/eCMU.png" width="100%"  alt="our pipeline"/>
 </p>
 
 Our implementation was developed based on the [`sdx23-aimless`](https://github.com/aim-qmul/sdx23-aimless.git) framework.
