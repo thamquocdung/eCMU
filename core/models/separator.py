@@ -1,3 +1,4 @@
+import argparse
 import os
 from pathlib import Path
 import yaml
@@ -175,7 +176,32 @@ class MusicSeparationModel:
         y_hat = self.inv_spec(Y_hat, length=x.shape[-1])
 
         return y_hat
+    
+def main():
+    parser = argparse.ArgumentParser("eCMU Music Demixer", add_help=True, formatter_class=argparse.RawDescriptionHelpFormatter)
 
+    parser.add_argument("input", type=str, help="Path to input audio file")
+    parser.add_argument(
+        "--model_ckpt", 
+        type=str,
+        help="Path to model checkpoints")
+    
+    parser.add_argument(
+        "--targets",
+        nargs="+",
+        type=str,
+        help="provide targets to be processed. If None, all available targets will be computed",
+    )
+    parser.add_argument(
+        "--out_dir",
+        type=str,
+        default="./outputs",
+        help="Output path to save separated audio files"
+    )
+    args = parser.parse_args()
+    # separator = MusicSeparationModel(model_root="/home/eCMU/eMUC_cp/all", source_names=["vocals", "drums", "bass", "others"])
+    # separator(audio_path=args.input, output_path=args.out_dir)
+    print(args)
 if __name__ == "__main__":
-    separator = MusicSeparationModel(model_root="/home/eCMU/eMUC_cp/all", source_names=["vocals", "drums", "bass", "others"])
-    separator("/home/eCMU/static/samples/22_TaylorSwift.mp3")
+    main()
+    
