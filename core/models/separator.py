@@ -21,7 +21,7 @@ class MusicSeparationModel:
                 source_names: List[str],
                 n_fft: int = 4096,
                 hop_length: int = 1024,
-                device: int = None
+                use_gpu: bool = False
     ):
         """Call for separating a mixture audio file into stems
         Args:
@@ -29,6 +29,7 @@ class MusicSeparationModel:
             source_names List[str]: A list of target source names (stems)
             n_fft (int): window size
             hop_length (int): hop length
+            use_gpu (bool): Use GPU or CPU
         Outputs:
             Output audio file for each stem
         """
@@ -39,13 +40,10 @@ class MusicSeparationModel:
         for src_name in source_names:
             assert src_name in MusicSeparationModel.SOURCES, f"{src_name} is no available!"
         
-        if device is None:
-            self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        else:
-            self.device = device
-        
-        assert self.device in ["cuda:0", "cpu"], f"{self.device} is not supported!"
-        if self.device:
+        use_gpu = use_gpu and torch.cuda.is_available()
+        self.device = torch.device("cuda" if use_gpu else "cpu")
+
+        if not use_gpu:
             print("WARNING - Running on cpu takes much more time!")
 
         self.mwf = MWF()
@@ -201,13 +199,21 @@ def main():
         default="./outputs",
         help="Output path to save separated audio files"
     )
+
+    parser.add_argument(
+        "--no-gpu",
+        action="store_true",
+        default=False,
+        help="Enable/Disable inference on GPU"
+    )
    
     args = parser.parse_args()
-    print(args, args.targets is None)
     if args.targets is None:
         args.targets = MusicSeparationModel.SOURCES
-    separator = MusicSeparationModel(model_root=args.model_ckpt, source_names=args.targets)
-    # separator(audio_path=args.input, output_path=args.out_dir)
+    
+    separator = MusicSeparationModel(model_root=args.model_ckpt, source_names=args.targets, use_gpu=(not args.no_gpu))
+    separator(audio_path=args.input, output_path=args.out_dir)
+    
 if __name__ == "__main__":
     main()
     
