@@ -26,7 +26,16 @@ pip install -r requirments.txt
 ```
 
 ## Getting Started
+- To separate all sources on gpu:
+```bash
+python -m core.models.separator assets/samples/22_TaylorSwift.mp3  --model_ckpt ckpt_path/
+```
 
+- To separate all sources on cpu:
+```bash
+python -m core.models.separator assets/samples/22_TaylorSwift.mp3  --model_ckpt ckpt_path/ --no-gpu
+```
+You can try other audio formats: ```.wav```, ```.m4a```, ```.aac```,...
 ## Training
 
 ## Evaluation
