@@ -15,6 +15,7 @@ from typing import List
 import time
 
 class MusicSeparationModel:
+    SOURCES = ["vocals", "drums", "bass", "other"]
     def __init__(self, 
                 model_root: str,
                 source_names: List[str],
@@ -34,7 +35,9 @@ class MusicSeparationModel:
         self.models = {}
         self.source_names = source_names
         self.target_sr = 44100
-
+        
+        for src_name in source_names:
+            assert src_name in MusicSeparationModel.SOURCES, f"{src_name} is no available!"
         
         if device is None:
             self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -198,10 +201,13 @@ def main():
         default="./outputs",
         help="Output path to save separated audio files"
     )
+   
     args = parser.parse_args()
-    # separator = MusicSeparationModel(model_root="/home/eCMU/eMUC_cp/all", source_names=["vocals", "drums", "bass", "others"])
+    print(args, args.targets is None)
+    if args.targets is None:
+        args.targets = MusicSeparationModel.SOURCES
+    separator = MusicSeparationModel(model_root=args.model_ckpt, source_names=args.targets)
     # separator(audio_path=args.input, output_path=args.out_dir)
-    print(args)
 if __name__ == "__main__":
     main()
     
