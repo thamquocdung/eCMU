@@ -26,23 +26,23 @@ pip install -r requirments.txt
 ```
 
 ## Getting Started
-- Note: eCMU is a single-target model. This means each stem is separated by a specific model. Therefore, there are four single models in total.
+_Note: eCMU is a single-target model. This means each stem is separated by a specific model. Therefore, there are four single models in total._
 - Download model weight at ...
-- To separate all sources on gpu:
+- To separate all sources on `gpu`:
 ```bash
 python -m core.models.separator 
     assets/samples/22_TaylorSwift.mp3  
     --model_ckpt ckpt_path/
 ```
 
-- To separate all sources on cpu:
+- To separate all sources on `cpu`:
 ```bash
 python -m core.models.separator 
     assets/samples/22_TaylorSwift.mp3  
     --model_ckpt ckpt_path/ 
     --no-gpu
 ```
-- Or, even if you want to separte a subset of stems (i.e: only {`vocals`, `drums`}), you can run:
+- Or, even if you want to separte a _subset of stems_ (i.e: only {`vocals`, `drums`}), you can run:
 ```bash
 python -m core.models.separator 
     assets/samples/22_TaylorSwift.mp3  
