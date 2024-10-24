@@ -53,9 +53,9 @@ Other audio formats: `.wav`, `.m4a`, `.aac` are also supported.
 ## Training
 ```bash
 python main.py fit --config cfg/vocals.yaml
-python main.py fit --config cfg/drums.yaml
-python main.py fit --config cfg/bass.yaml
-python main.py fit --config cfg/other.yaml
+# python main.py fit --config cfg/drums.yaml
+# python main.py fit --config cfg/bass.yaml
+# python main.py fit --config cfg/other.yaml
 ```
 
 Look into the `.yaml` files, if you want to modify hyper-parameters, training arguments, data pipeline,...
