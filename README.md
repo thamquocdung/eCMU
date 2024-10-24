@@ -42,7 +42,14 @@ python -m core.models.separator
     --model_ckpt ckpt_path/ 
     --no-gpu
 ```
-You can try other audio formats: `.wav`, `.m4a`, `.aac`,...
+- Or, even if you want to separte a subset of stems (i.e: only {`vocals`, `drums`}), you can run:
+```bash
+python -m core.models.separator 
+    assets/samples/22_TaylorSwift.mp3  
+    --targets vocals drums
+    --model_ckpt ckpt_path/ 
+```
+Other audio formats: `.wav`, `.m4a`, `.aac` are also supported.
 ## Training
 ```bash
 python main.py fit --config cfg/vocals.yaml
