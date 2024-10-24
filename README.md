@@ -26,6 +26,8 @@ pip install -r requirments.txt
 ```
 
 ## Getting Started
+- Note: eCMU is a single-target model. This means each stem is separated by a specific model. Therefore, there are four single models in total.
+- Download model weight at ...
 - To separate all sources on gpu:
 ```bash
 python -m core.models.separator 
@@ -40,8 +42,16 @@ python -m core.models.separator
     --model_ckpt ckpt_path/ 
     --no-gpu
 ```
-You can try other audio formats: ```.wav```, ```.m4a```, ```.aac```,...
+You can try other audio formats: `.wav`, `.m4a`, `.aac`,...
 ## Training
+```bash
+python main.py fit --config cfg/vocals.yaml
+python main.py fit --config cfg/drums.yaml
+python main.py fit --config cfg/bass.yaml
+python main.py fit --config cfg/other.yaml
+```
+
+Look into the `.yaml` files, if you want to modify hyper-parameters, training arguments, data pipeline,...
 
 ## Evaluation
 
