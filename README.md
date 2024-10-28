@@ -61,6 +61,18 @@ python main.py fit --config cfg/vocals.yaml
 Look into the `.yaml` files, if you want to modify hyper-parameters, training arguments, data pipeline,...
 
 ## Evaluation
+`SDR`: median of the chunk-level SDR. This is a standard evaluation metric proposed in [SiSEC18](https://arxiv.org/abs/1804.06267) and implemented in [`museval`](https://github.com/sigsep/sigsep-mus-eval). 
+<!-- - `uSDR`: mean score of utterance-level SDR proposed in the Music Demixing Challenge ([MDX](https://arxiv.org/abs/2108.13559)). This is a faster version of SDR. -->
+
+| Method               | #params (M) | extra data? |vocals | drums | bass | other | all  |
+| :---                 | :---:       | :---:       |:---:  | :---: | :---:| :---: | :---:|
+|  UMX  (h=512)        | 8.9         | no          | 6.25  | 6.04  | 5.07 | 4.28  | 5.41 |
+|  UMXL (h=1024)       | 28.2        | yes         | 7.21  | 7.15  | 6.02 | 4.89  | 6.32 |
+|  X-UMX               | 35.6        | no          | 6.61  | 6.47  | 5.43 | 4.46  | 5.79 |
+|  Spleeter            | 9.8         | yes         | 6.86  | 6.71  | 5.51 | 4.02  | 5.91 |
+|  Hybrid-Demucs       | 83.6        | no          | 8.13  | 8.24  | 8.67 | 5.59  | 7.68 |
+|  Ours (small, h=256) | 3.8         | no          | 6.56  | 6.68  | 5.34 | 4.57  | 5.79 |
+|  Ours (large, h=1024)| 37.0        | no          | 7.59  | 7.09  | 5.91 | 5.50  | 6.52 |
 
 ## Citations
 If you find our eCMU useful, please consider citing as below:
