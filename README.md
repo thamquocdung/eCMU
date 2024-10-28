@@ -1,4 +1,4 @@
-# eCMU (Coming soon!!!)
+# eCMU
 <b>This is an Official implementation of eCMU: An Efficient Phase-aware Framework for Music Source Separation with Conformer (IEEE RIVF23) </b>
 <p align="center">
   <img src="./assets/eCMU.png" width="100%"  alt="our pipeline"/>
@@ -51,11 +51,14 @@ python -m core.models.separator
 ```
 Other audio formats: `.wav`, `.m4a`, `.aac` are also supported.
 ## Training
+**Note**: Remember to replace the path of data root in `.yaml` files before training.
 ```bash
-python main.py fit --config cfg/vocals.yaml
-# python main.py fit --config cfg/drums.yaml
-# python main.py fit --config cfg/bass.yaml
-# python main.py fit --config cfg/other.yaml
+python main.py fit --config cfg/small/vocals.yaml
+# python main.py fit --config cfg/small/drums.yaml
+# python main.py fit --config cfg/small/bass.yaml
+# python main.py fit --config cfg/small/other.yaml
+
+# python main.py fit --config cfg/large/vocals.yaml
 ```
 
 Look into the `.yaml` files, if you want to modify hyper-parameters, training arguments, data pipeline,...
@@ -80,7 +83,7 @@ Look into the `.yaml` files, if you want to modify hyper-parameters, training ar
   ```
 - To evaluate only 1 source once training a model, remember to replace `ckpt_path` in `.yaml` config file:
   ```bash
-  python evaluate.py --config cfg/vocals.yaml --data_root data_path/
+  python evaluate.py --config cfg/small/vocals.yaml --data_root data_path/
   ```
 ## Citations
 If you find our eCMU useful, please consider citing as below:
