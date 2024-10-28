@@ -114,6 +114,7 @@ def main():
     args = parser.parse_args()
     use_gpu = torch.cuda.is_available()
     device = torch.device("cuda" if use_gpu else "cpu")
+    src_rate = 44100
     if args.all:
         assert args.model_root is not None, f"Invalid args.model_root: {args.model_root}"
         if args.targets is None:
@@ -141,16 +142,16 @@ def main():
 
     test_set = musdb.DB(args.data_root, subsets=["test"], is_wav=True) 
     # test_set = musdb.DB(args.data_root, subsets=["train"], split="valid", is_wav=True)
-    src_rate = 44100
+    
     print(f"Make an evaluation for: {sources} on {device}")
     start_time = time.time()
-
     pool = ThreadPoolExecutor(multiprocessing.cpu_count())
     kwargs = {
         "windown_size": int(1. * src_rate),
         "hop_size": int(1. * src_rate),
         "compute_chunk_sdr": True
     }
+    
     tracks = {}
     futures = []
     for index in tqdm(range(len(test_set)), desc="Separate:"):
