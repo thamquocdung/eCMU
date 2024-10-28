@@ -118,12 +118,12 @@ data:
     random: true
     random_track_mix: true
     transforms: null
-    # - class_path: core.data.augment.RandomGain
-    # - class_path: core.data.augment.RandomFlipPhase
-    # - class_path: core.data.augment.RandomSwapLR
-    # - class_path: core.data.augment.LimitAug
-      # init_args:
-      #   sample_rate: 44100
+    - class_path: core.data.augment.RandomGain
+    - class_path: core.data.augment.RandomFlipPhase
+    - class_path: core.data.augment.RandomSwapLR
+    - class_path: core.data.augment.LimitAug
+      init_args:
+        sample_rate: 44100
     batch_size: 4
 optimizer:
   class_path: torch.optim.Adam
