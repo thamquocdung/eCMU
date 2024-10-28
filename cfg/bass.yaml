@@ -10,15 +10,15 @@ trainer:
       filename: '{epoch}-{avg_sdr:.3f}'
       save_last: true
       mode: 'max'
-  - class_path: core.callbacks.EMACallback
-    init_args:
-      decay: 0.9999
-      use_ema_weights: false
-      start_ema_epoch: 600
+  # - class_path: core.callbacks.EMACallback
+  #   init_args:
+  #     decay: 0.9999
+  #     use_ema_weights: false
+  #     start_ema_epoch: 600
   logger:
   - class_path: pytorch_lightning.loggers.TensorBoardLogger
     init_args:
-      save_dir: "tb_logs/pretrain"
+      save_dir: "tb_logs/ecmu-small"
       name: "bass"
   enable_checkpointing: true
   default_root_dir: null
@@ -91,7 +91,7 @@ model:
         - 90
         - 100
         - 110
-        p: 0.2
+        p: 0.0
     - class_path: core.data.augment_cuda.RandomPitch
       init_args:
         semitones:
@@ -100,7 +100,7 @@ model:
         - 0
         - 1
         - 2
-        p: 0.2
+        p: 0.0
     targets: {bass}
     n_fft: 4096
     hop_length: 1024
@@ -117,13 +117,13 @@ data:
     samples_per_track: 32
     random: true
     random_track_mix: true
-    transforms:
-    - class_path: core.data.augment.RandomGain
-    - class_path: core.data.augment.RandomFlipPhase
-    - class_path: core.data.augment.RandomSwapLR
-    - class_path: core.data.augment.LimitAug
-      init_args:
-        sample_rate: 44100
+    transforms: null
+    # - class_path: core.data.augment.RandomGain
+    # - class_path: core.data.augment.RandomFlipPhase
+    # - class_path: core.data.augment.RandomSwapLR
+    # - class_path: core.data.augment.LimitAug
+    #   init_args:
+    #     sample_rate: 44100
     batch_size: 4
 optimizer:
   class_path: torch.optim.Adam

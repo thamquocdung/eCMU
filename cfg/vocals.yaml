@@ -4,20 +4,21 @@ trainer:
   callbacks:
   - class_path: pytorch_lightning.callbacks.ModelCheckpoint
     init_args:
-      dirpath: "checkpoints/foo"
+      dirpath: "checkpoints/vocals"
       save_top_k: 2
       monitor: 'avg_sdr'
       filename: '{epoch}-{avg_sdr:.3f}'
       save_last: true
       mode: 'max'
-  # - class_path: callbacks.EMACallback
+  # - class_path: core.callbacks.EMACallback
   #   init_args:
   #     decay: 0.9999
   #     use_ema_weights: false
+  #     start_ema_epoch: 500
   logger:
   - class_path: pytorch_lightning.loggers.TensorBoardLogger
     init_args:
-      save_dir: "tb_logs/foo"
+      save_dir: "tb_logs/ecmu-small"
       name: "vocals"
   enable_checkpointing: true
   default_root_dir: null
