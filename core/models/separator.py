@@ -61,9 +61,9 @@ class MusicSeparationModel:
             self.models[src_name] = eCMU(**ecmu_args).to(self.device)
 
             if self.device == "cpu":
-                checkpoint = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+                checkpoint = torch.load(ckpt_path, map_location="cpu", weights_only=False)
             else:
-                checkpoint = torch.load(ckpt_path, map_location="cuda", weights_only=True)
+                checkpoint = torch.load(ckpt_path, map_location="cuda", weights_only=False)
 
             try:
                 self.models[src_name].load_state_dict(checkpoint['callbacks']['EMACallback']['state_dict_ema'], strict=False)
@@ -72,6 +72,7 @@ class MusicSeparationModel:
                     self.models[src_name].load_state_dict(checkpoint['state_dict'], strict=False)
                 else:
                     self.models[src_name].load_state_dict(checkpoint, strict=False)
+
 
             self.models[src_name].eval()
 
@@ -168,14 +169,13 @@ class MusicSeparationModel:
         X_mag = X.abs()
         
         pred_masks = []
-        for _, model in self.models.items():
-            out = model(X_mag).squeeze()
+        for source_name in self.source_names:
+            out = self.models[source_name](X_mag).squeeze()
             pred_masks.append(out)
         
         pred_masks = torch.stack(pred_masks, axis=0).unsqueeze(0)
         Y_hat = self.mwf(pred_masks, X)
         y_hat = self.inv_spec(Y_hat, length=x.shape[-1])
-
         return y_hat
     
 def main():
