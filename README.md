@@ -51,6 +51,12 @@ python -m core.models.separator
 ```
 Other audio formats: `.wav`, `.m4a`, `.aac` are also supported.
 ## Training
+Download [`MUSDB18-HQ`](https://sigsep.github.io/datasets/musdb.html#musdb18-hq-uncompressed-wav) dataset and uncompress into `musdb/`
+```
+musdb/
+|____ train/
+|____ test/
+```
 **Note**: Remember to replace the path of data root in `.yaml` files before training.
 ```bash
 python main.py fit --config cfg/small/vocals.yaml
@@ -79,11 +85,11 @@ Look into the `.yaml` files, if you want to modify hyper-parameters, training ar
 
 - To evaluate all sources from our public weights:
   ```bash
-  python evaluate.py --all --model_ckpt ckpt_path/ --data_root data_path/
+  python evaluate.py --all --model_ckpt ckpt_path/ --data_root musdb/
   ```
 - To evaluate only 1 source once training a model, remember to replace `ckpt_path` in `.yaml` config file:
   ```bash
-  python evaluate.py --config cfg/small/vocals.yaml --data_root data_path/
+  python evaluate.py --config cfg/small/vocals.yaml --data_root musdb/
   ```
 ## Citations
 If you find our eCMU useful, please consider citing as below:
