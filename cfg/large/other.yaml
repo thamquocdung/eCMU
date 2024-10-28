@@ -1,0 +1,133 @@
+# pytorch_lightning==1.8.5.post0
+seed_everything: true
+trainer:
+  callbacks:
+  - class_path: pytorch_lightning.callbacks.ModelCheckpoint
+    init_args:
+      dirpath: "checkpoints/other-large"
+      save_top_k: 2
+      monitor: 'avg_sdr'
+      filename: '{epoch}-{avg_sdr:.3f}'
+      save_last: true
+      mode: 'max'
+  # - class_path: core.callbacks.EMACallback
+  #   init_args:
+  #     decay: 0.9999
+  #     use_ema_weights: false
+  #     start_ema_epoch: 500
+  logger:
+  - class_path: pytorch_lightning.loggers.TensorBoardLogger
+    init_args:
+      save_dir: ""tb_logs/ecmu-large""
+      name: "other"
+  enable_checkpointing: true
+  default_root_dir: null
+  gradient_clip_val: null
+  gradient_clip_algorithm: null
+  num_nodes: 1
+  num_processes: null
+  devices: null
+  gpus: null
+  auto_select_gpus: false
+  tpu_cores: null
+  ipus: null
+  enable_progress_bar: true
+  overfit_batches: 0.0
+  track_grad_norm: -1
+  check_val_every_n_epoch: 1
+  fast_dev_run: false
+  accumulate_grad_batches: 4
+  max_epochs: 1700
+  min_epochs: null
+  max_steps: -1
+  min_steps: null
+  max_time: null
+  limit_train_batches: null
+  limit_val_batches: null
+  limit_test_batches: null
+  limit_predict_batches: null
+  val_check_interval: null
+  log_every_n_steps: 1
+  accelerator: gpu
+  sync_batchnorm: true
+  precision: 32
+  enable_model_summary: true
+  num_sanity_val_steps: 2
+  resume_from_checkpoint: null
+  profiler: null
+  benchmark: null
+  deterministic: null
+  reload_dataloaders_every_n_epochs: 0
+  auto_lr_find: false
+  replace_sampler_ddp: true
+  detect_anomaly: false
+  auto_scale_batch_size: false
+  plugins: null
+  amp_backend: native
+  amp_level: null
+  move_metrics_to_cpu: false
+  inference_mode: true
+
+model:
+  class_path: core.lightning.freq_mask.MaskPredictor
+  init_args:
+    model:
+      class_path: core.models.ecmu.eCMU
+      init_args:
+        n_fft: 4096
+        hidden_channels: 1024
+        max_bins: 1487
+        nb_channels: 2
+        nb_layers: 3
+    criterion: 
+      class_path: core.loss.freq.MDLoss
+      init_args:
+        mcoeff: 10
+    transforms:
+    - class_path: core.data.augment_cuda.SpeedPerturb
+      init_args:
+        orig_freq: 44100
+        speeds: 
+        - 90
+        - 100
+        - 110
+        p: 0.2
+    - class_path: core.data.augment_cuda.RandomPitch
+      init_args:
+        semitones:
+        - -1
+        - 1
+        - 0
+        - 1
+        - 2
+        p: 0.2
+    targets: {other}
+    n_fft: 4096
+    hop_length: 1024
+    dim_f: 2048
+    residual_model: false
+    softmask: false
+    alpha: 1.0
+    n_iter: 1
+data:
+  class_path: core.data.lightning.MUSDB
+  init_args:
+    root: /home/datasets/musdb
+    seq_duration: 6.0
+    samples_per_track: 32
+    random: true
+    random_track_mix: true
+    transforms:
+    - class_path: core.data.augment.RandomGain
+    - class_path: core.data.augment.RandomFlipPhase
+    - class_path: core.data.augment.RandomSwapLR
+    - class_path: core.data.augment.LimitAug
+      init_args:
+        sample_rate: 44100
+    batch_size: 4
+optimizer:
+  class_path: torch.optim.Adam
+  init_args:
+    lr: 0.0001
+    weight_decay: 0.00001
+ckpt_path: null
