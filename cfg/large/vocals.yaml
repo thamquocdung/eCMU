@@ -18,7 +18,7 @@ trainer:
   logger:
   - class_path: pytorch_lightning.loggers.TensorBoardLogger
     init_args:
-      save_dir: ""tb_logs/ecmu-large""
+      save_dir: "tb_logs/ecmu-large"
       name: "vocals"
   enable_checkpointing: true
   default_root_dir: null
@@ -37,7 +37,7 @@ trainer:
   check_val_every_n_epoch: 1
   fast_dev_run: false
   accumulate_grad_batches: 4
-  max_epochs: 1500
+  max_epochs: null
   min_epochs: null
   max_steps: -1
   min_steps: null
