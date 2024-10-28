@@ -120,7 +120,7 @@ def main():
     parser = argparse.ArgumentParser(description='SS Trainer')
     parser.add_argument("--all", action="store_true", default=False, help="Evaluate for 1 or all sources")
     parser.add_argument("--config", type=str, default=None, help="Path to .yaml file config.")
-    parser.add_argument('--model_root', type=str, default=None, help='Path to model checkpoints.')
+    parser.add_argument('--model_ckpt', type=str, default=None, help='Path to model checkpoints.')
     parser.add_argument(
         "--targets",
         nargs="+",
@@ -134,12 +134,12 @@ def main():
     device = torch.device("cuda" if use_gpu else "cpu")
     src_rate = 44100
     if args.all:
-        assert args.model_root is not None, f"Invalid args.model_root: {args.model_root}"
+        assert args.model_ckpt is not None, f"Invalid args.model_ckpt: {args.model_ckpt}"
         if args.targets is None:
             args.targets = MusicSeparationModel.SOURCES
-        model = MusicSeparationModel(model_root=args.model_root, source_names=args.targets, use_gpu=use_gpu)
+        model = MusicSeparationModel(model_root=args.model_ckpt, source_names=args.targets, use_gpu=use_gpu)
         sources = model.source_names
-        model_ver = f'all.{args.model_root.split("/")[-1]}'
+        model_ver = f'all.{args.model_ckpt.split("/")[-1]}'
     else:
         assert args.config is not None, f"Invalid args.config: {args.config}"
         cli = MyLightningCLI(run=False)

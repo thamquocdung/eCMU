@@ -74,6 +74,14 @@ Look into the `.yaml` files, if you want to modify hyper-parameters, training ar
 |  Ours (small, h=256) | 3.8         | no          | 6.56  | 6.68  | 5.34 | 4.57  | 5.79 |
 |  Ours (large, h=1024)| 37.0        | no          | 7.59  | 7.09  | 5.91 | 5.50  | 6.52 |
 
+- To evaluate all sources from our public weights:
+  ```bash
+  python evaluate.py --all --model_ckpt ckpt_path/ --data_root data_path/
+  ```
+- To evaluate only 1 source once training a model, remeber to replace `ckpt_path` in `.yaml` config file:
+  ```bash
+  python evaluate.py --config cfg/vocals.yaml --data_root data_path/
+  ```
 ## Citations
 If you find our eCMU useful, please consider citing as below:
 ```
