@@ -21,7 +21,7 @@ class MusicSeparationModel:
                 source_names: List[str],
                 n_fft: int = 4096,
                 hop_length: int = 1024,
-                use_gpu: bool = False
+                use_gpu: bool = True
     ):
         """Call for separating a mixture audio file into stems
         Args:
@@ -58,8 +58,8 @@ class MusicSeparationModel:
                 args = yaml.safe_load(f)
             
             ecmu_args = args["model"]["init_args"]["model"]["init_args"]
-
             self.models[src_name] = eCMU(**ecmu_args).to(self.device)
+
             if self.device == "cpu":
                 checkpoint = torch.load(ckpt_path, map_location="cpu", weights_only=True)
             else:
