@@ -27,6 +27,17 @@ from core.models.separator import MusicSeparationModel
 
 sdr = SDR()
 def eval_track(references, estimates, windown_size, hop_size, compute_chunk_sdr=False):
+    """Call for compute the sdr score
+    Args:
+        references (Tensor): Groundtruth waveform(B, n_sources, 2, L)
+        estimates (Tensor): Estimated waveform(B, n_sources, 2, L)
+        windown_size (int): window size
+        hop_size (int): hop size
+        compute_chunk_sdr (bool): compute chunk-level SDR or only utterance-level SDR
+    Return:
+        scores (Tuple[np.ndarray, shape(n_sources, )]): A tuple of numpy array scores (sdr, isr, sir, sar) for each source. In this problem, we only use sdr
+        new_scores (float): utterance-level SDR
+    """
     new_scores = (
             sdr(estimates.view(-1, *estimates.shape[-2:]), references.view(-1, *references.shape[-2:]))   
     )
@@ -50,13 +61,13 @@ def eval_track(references, estimates, windown_size, hop_size, compute_chunk_sdr=
 
         return scores, new_scores
 
-def read_audio(track, sources, src_rate):
+def read_audio(track, sources, src_rate=44100):
     references = []
 
     # read stem audios
-    for target in sources:
+    for source in sources:
         y, _ = sf.read(
-            str(track.sources[target]), frames=int(track.duration)*src_rate, start=0,
+            str(track.sources[source]), frames=int(track.duration)*src_rate, start=0,
             dtype='float32', fill_value=0.
         )
         y = torch.as_tensor(y.T, dtype=torch.float32)
@@ -72,10 +83,17 @@ def read_audio(track, sources, src_rate):
     mixture = torch.as_tensor(mixture.T, dtype=torch.float32)
     return mixture, references
 
-def compute_score(tracks, sources):
+def compute_score(track_scores, sources):
+    """Aggregate the dataset-level SDR from the score of each track
+    Args:
+        track_scores (Dict[str, Dict[str, Dict[str, float]]]): A score dictionary of each source for each track. ({"Song 1": {"vocals": {"sdr": 5.5}, "bass": {"sdr": 5.5}}})
+        sources (List[str]): List of target sources
+    Return:
+        result (Dict[str, float]): Mean and median of SDR score for each source on the whole dataset
+    """
     result = {}
 
-    for value in tracks.values():
+    for value in track_scores.values():
         metric_names = value[sources[0]].keys()
         break
 
@@ -84,8 +102,8 @@ def compute_score(tracks, sources):
         avg_of_medians = 0
         for source in sources:
             medians = [
-                np.nanmedian(tracks[track][source][metric_name])
-                for track in tracks.keys()]
+                np.nanmedian(track_scores[track][source][metric_name])
+                for track in track_scores.keys()]
             mean = np.mean(medians)
             median = np.median(medians)
             result[metric_name.lower() + "_" + source] = mean
@@ -152,7 +170,7 @@ def main():
         "compute_chunk_sdr": True
     }
     
-    tracks = {}
+    track_scores = {}
     futures = []
     for index in tqdm(range(len(test_set)), desc="Separate:"):
         track = test_set.tracks[index]
@@ -166,10 +184,10 @@ def main():
     futures = tqdm(futures, desc="Compute score:")
     for future, track_name in futures:
         scores, nsdrs = future.result()
-        tracks[track_name] = {}
+        track_scores[track_name] = {}
 
         for idx, target in enumerate(sources):
-            tracks[track_name][target] = {'nsdr': [float(nsdrs[idx])]}
+            track_scores[track_name][target] = {'nsdr': [float(nsdrs[idx])]}
     
         if scores is not None:
             (sdr, isr, sir, sar) = scores
@@ -180,9 +198,9 @@ def main():
                     # "ISR": isr[idx].tolist(),
                     # "SAR": sar[idx].tolist()
                 }
-                tracks[track_name][target].update(values)
+                track_scores[track_name][target].update(values)
 
-    results = compute_score(tracks, sources)
+    results = compute_score(track_scores, sources)
     print(results)
 
     # Dump to .json file

@@ -23,7 +23,7 @@ class MusicSeparationModel:
                 hop_length: int = 1024,
                 use_gpu: bool = True
     ):
-        """Call for separating a mixture audio file into stems
+        """Initilize 
         Args:
             model_root (str): Path to model checkpoints
             source_names List[str]: A list of target source names (stems)
