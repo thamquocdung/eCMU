@@ -1,44 +1,31 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
 
 """Test time evaluation, either using the original SDR from [Vincent et al. 2006]
 or the newest SDR definition from the MDX 2021 competition (this one will
 be reported as `nsdr` for `new sdr`).
 """
 
-from concurrent.futures import ThreadPoolExecutor
-import numpy as np
-import musdb
-import museval
-
-import torch
-from torch.utils.data import DataLoader
-
-from torchinfo import summary
 import argparse
+from concurrent.futures import ThreadPoolExecutor
+import multiprocessing
+
+import numpy as np
 import json
-from datetime import datetime
 import os
 import time
-
-
-from utils import write_samples, tensorboard_add_sample, visualize
 from tqdm import tqdm
 from pathlib import Path
-import soundfile as sf
-from tqdm.contrib.concurrent import process_map
-from core.models.separator import MusicSeparationModel
-from main import MyLightningCLI
 
-from core.models.ecmu import eCMU
+import torch
+import musdb
+import museval
+import soundfile as sf
+
+from main import MyLightningCLI
 from core.loss.time import SDR
+from core.models.separator import MusicSeparationModel
 
 
 sdr = SDR()
-
 def eval_track(references, estimates, windown_size, hop_size, compute_chunk_sdr=False):
     new_scores = (
             sdr(estimates.view(-1, *estimates.shape[-2:]), references.view(-1, *references.shape[-2:]))   
@@ -109,63 +96,56 @@ def compute_score(tracks, sources):
         result[metric_name.lower() + "_med"] = avg_of_medians
 
     return result
-
-def evaluate(model, windown_size=44100, hop_size=44100, compute_chunk_SDR=False):
-    """
-    Evaluate model using museval.
-    compute_sdr=False means using only the MDX definition of the SDR, which
-    is much faster to evaluate.
-    """
-    pass
  
 
-# parser = argparse.ArgumentParser(description='SS Trainer')
-
-# parser.add_argument('config', type=str, help='config file')
-# parser.add_argument('--checkpoint', type=str, default=None,
-#                     help='training checkpoint')
-
-# args = parser.parse_args()
-
-def initialize(cli):
-    save_pretrain = False
-    model = cli.model.eval().cuda()
-    ckpt = cli.config['ckpt_path']
-    print("Loading model from ckpt: ", ckpt)
-    checkpoint = torch.load(cli.config['ckpt_path'], map_location='cuda', weights_only=True)
-
-    if "EMACallback" in checkpoint['callbacks']:
-        model.model.load_state_dict(checkpoint['callbacks']['EMACallback']['state_dict_ema'], strict=False)
-    else:
-        model.load_state_dict(checkpoint["state_dict"], strict=True)
-
-
-    separator = model # MusicSeparationModel(**params)
-    test_set = musdb.DB("/home/datasets/musdb", subsets=["test"], is_wav=True)
-    # test_set = musdb.DB("../musdb", subsets=["train"], split="valid", is_wav=True)
-
-    # output_dir = "results/samples"
-    # Path(output_dir).mkdir(parents=True, exist_ok=True)
-    model_ver = ".".join(ckpt.split("/")[-2:])
-    json_folder = f'results/test/{model_ver}'
-    Path(json_folder).mkdir(parents=True, exist_ok=True)
-
-    if save_pretrain:
-        print(ckpt+"pre")
-        torch.save(model.model.state_dict(), ckpt+"pre")
-    
-    return separator, test_set, json_folder
-
 def main():
-    cli = MyLightningCLI(run=False)
-    model, test_set, json_folder = initialize(cli)
+    parser = argparse.ArgumentParser(description='SS Trainer')
+    parser.add_argument("--all", action="store_true", default=False, help="Evaluate for 1 or all sources")
+    parser.add_argument("--config", type=str, default=None, help="Path to .yaml file config.")
+    parser.add_argument('--model_root', type=str, default=None, help='Path to model checkpoints.')
+    parser.add_argument(
+        "--targets",
+        nargs="+",
+        type=str,
+        help="provide targets to be processed. If None, all available targets will be computed",
+    )
+    parser.add_argument('--data_root', type=str, help='Path to musdb dataset')
+
+    args = parser.parse_args()
+    use_gpu = torch.cuda.is_available()
+    device = torch.device("cuda" if use_gpu else "cpu")
+    if args.all:
+        assert args.model_root is not None, f"Invalid args.model_root: {args.model_root}"
+        if args.targets is None:
+            args.targets = MusicSeparationModel.SOURCES
+        model = MusicSeparationModel(model_root=args.model_root, source_names=args.targets, use_gpu=use_gpu)
+        sources = model.source_names
+        model_ver = f'all.{args.model_root.split("/")[-1]}'
+    else:
+        assert args.config is not None, f"Invalid args.config: {args.config}"
+        cli = MyLightningCLI(run=False)
+        model = cli.model.eval().to(device)
+        
+        ckpt = cli.config['ckpt_path']
+        sources = list(model.targets.keys())
+        model_ver = ".".join(ckpt.split("/")[-2:])
+   
+
+        print("Loading model from ckpt: ", ckpt)
+        checkpoint = torch.load(ckpt, map_location=device, weights_only=True)
+
+        if "EMACallback" in checkpoint['callbacks']:
+            model.model.load_state_dict(checkpoint['callbacks']['EMACallback']['state_dict_ema'], strict=False)
+        else:
+            model.load_state_dict(checkpoint["state_dict"], strict=True)
+
+    test_set = musdb.DB(args.data_root, subsets=["test"], is_wav=True) 
+    # test_set = musdb.DB(args.data_root, subsets=["train"], split="valid", is_wav=True)
     src_rate = 44100
+    print(f"Make an evaluation for: {sources} on {device}")
+    start_time = time.time()
 
-    sources = list(model.targets.keys())
-    print(sources)
-    b = time.time()
-
-    pool = ThreadPoolExecutor(16)
+    pool = ThreadPoolExecutor(multiprocessing.cpu_count())
     kwargs = {
         "windown_size": int(1. * src_rate),
         "hop_size": int(1. * src_rate),
@@ -203,9 +183,15 @@ def main():
 
     results = compute_score(tracks, sources)
     print(results)
+
+    # Dump to .json file
+    json_folder = f'results/test/{model_ver}'
+    Path(json_folder).mkdir(parents=True, exist_ok=True)
     with open(f'{json_folder}/result.json', 'w') as f:
         json.dump(results, f)
-    print(time.time() - b)
+
+    elapsed_time = int(time.time() - start_time)
+    print(f"Evaluation done in {elapsed_time}s")
 
 if __name__ == "__main__":
-   main()
+    main()
