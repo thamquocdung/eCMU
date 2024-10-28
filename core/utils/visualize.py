@@ -9,41 +9,6 @@ import numpy as np
 from librosa.display import specshow
 # import pandas as pd
 
-def on_load_checkpoint(model, checkpoint: dict) -> None:
-    state_dict = checkpoint.copy()
-    model_state_dict = model.state_dict()
-    is_changed = False
-    for k in checkpoint.keys():
-        if k in model_state_dict:
-            if state_dict[k].shape != model_state_dict[k].shape:
-                print(f"Skip loading parameter: {k}, "
-                            f"required shape: {model_state_dict[k].shape}, "
-                            f"loaded shape: {state_dict[k].shape}")
-                state_dict[k] = model_state_dict[k]
-                is_changed = True
-        else:
-            print(f"Dropping parameter {k}")
-            state_dict.pop(k)
-            is_changed = True
-
-    if is_changed:
-        checkpoint.pop("optimizer_states", None)
-
-    return state_dict
-    
-def remove_weight_norms(m):
-    if hasattr(m, 'weight_g'):
-        nn.utils.remove_weight_norm(m)
-
-
-def add_weight_norms(m):
-    if hasattr(m, 'weight'):
-        nn.utils.weight_norm(m)
-
-
-def get_instance(module, config, *args, **kwargs):
-    return getattr(module, config['type'])(*args, **config['args'], **kwargs)
-
 
 def _help(file_path):
     target_root='/app/dataset_resampling'
@@ -90,24 +55,6 @@ def write_samples(tb_logger, gt, output, sources, epoch):
         axes[i][1].set_title(f'output_{stem}')
     
     tb_logger.writer.add_figure(f'test/spectrogram', fig, epoch)
-
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
 
 
 def tensorboard_add_sample(writer, sources, sample, epoch, id, save_fig=False):
@@ -165,21 +112,6 @@ def tensorboard_add_sample(writer, sources, sample, epoch, id, save_fig=False):
 def visualize(sources, sample, o_path, t1, t2):
     mix, gt, pred = sample
 
-    # fig = plt.figure(figsize=(6, 2))
-    # axes = fig.subplots(1, 1, sharex=True)
-    # axes.plot(mix[0])
-    # fig.suptitle("mix")
-    # fig.savefig(f"{o_path}/waveform_mix.png")
-    # for i, source in enumerate(sources):
-    #     for name, wav in [("gt",gt), ("pred", pred)]:
-    #         fig = plt.figure(figsize=(6, 2))
-    #         axes = fig.subplots(1, 1, sharex=True)
-    #         axes.plot(wav[i, 0,t1:t2])
-
-    #         plt.tight_layout()
-    #         fig.savefig(f"{o_path}/{source}/waveform_{name}.png")
-
-
     fig = plt.figure(figsize=(4.5, 3))
     axes = fig.subplots(1, 1, sharex=True)
     mix_spec = np.abs(librosa.stft(mix[0], n_fft=4096, hop_length=1024))
@@ -199,4 +131,3 @@ def visualize(sources, sample, o_path, t1, t2):
             plt.tight_layout()
             fig.savefig(f"{o_path}/{source}/spec_{name}.png")
             plt.close()
-
