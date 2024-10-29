@@ -154,9 +154,14 @@ def main():
         checkpoint = torch.load(ckpt, map_location=device, weights_only=True)
 
         if "EMACallback" in checkpoint['callbacks']:
+            print("ema")
             model.model.load_state_dict(checkpoint['callbacks']['EMACallback']['state_dict_ema'], strict=False)
         else:
+            print("state_dict")
             model.load_state_dict(checkpoint["state_dict"], strict=True)
+        
+        # print(ckpt+"pre")
+        # torch.save(model.model.state_dict(), ckpt+"pre")
 
     test_set = musdb.DB(args.data_root, subsets=["test"], is_wav=True) 
     # test_set = musdb.DB(args.data_root, subsets=["train"], split="valid", is_wav=True)
@@ -176,7 +181,7 @@ def main():
         track = test_set.tracks[index]
         track_name = track.name
         mixture, references = read_audio(track, sources, src_rate)
-        estimates = model.separate(mixture[None,...].cuda())
+        estimates = model.separate(mixture[None,...].to(device))
 
         future = pool.submit(eval_track, references, estimates, **kwargs)
         futures.append((future, track_name))
