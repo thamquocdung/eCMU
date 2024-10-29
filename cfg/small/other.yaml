@@ -91,7 +91,7 @@ model:
         - 90
         - 100
         - 110
-        p: 0.0
+        p: 0.2
     - class_path: core.data.augment_cuda.RandomPitch
       init_args:
         semitones:
@@ -100,7 +100,7 @@ model:
         - 0
         - 1
         - 2
-        p: 0.0
+        p: 0.2
     targets: {other}
     n_fft: 4096
     hop_length: 1024
@@ -117,7 +117,7 @@ data:
     samples_per_track: 32
     random: true
     random_track_mix: true
-    transforms: null
+    transforms:
     - class_path: core.data.augment.RandomGain
     - class_path: core.data.augment.RandomFlipPhase
     - class_path: core.data.augment.RandomSwapLR
