@@ -95,7 +95,7 @@ class MusicSeparationModel:
         print(f"---> Mixture duration: {round(mix.shape[-1]/sr, 2)}s - Sampling rate: {sr}Hz")
 
         if sr != self.target_sr:
-            print("---> Resample mixture audio: {sr}Hz -> {self.target_sr}Hz")
+            print(f"---> Resample mixture audio: {sr}Hz -> {self.target_sr}Hz")
             mix = librosa.resample(mix, orig_sr=sr, target_sr=self.target_sr)
         
         
@@ -196,7 +196,7 @@ def main():
     parser.add_argument(
         "--out_dir",
         type=str,
-        default="./outputs",
+        default="data/outputs",
         help="Output path to save separated audio files"
     )
 

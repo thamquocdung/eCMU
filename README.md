@@ -50,6 +50,13 @@ python -m core.models.separator
     --model_ckpt ckpt_path/ 
 ```
 Other audio formats: `.wav`, `.m4a`, `.aac` are also supported.
+
+### Download audio from youtube
+In case you want to separate audio from youtube url, you can download the audio files first by:
+```bash
+python -m scripts.download <url>
+```
+Then, run the above inference commands with the new audio input.
 ## Training
 Download [`MUSDB18-HQ`](https://sigsep.github.io/datasets/musdb.html#musdb18-hq-uncompressed-wav) dataset and uncompress into `musdb/`
 ```
