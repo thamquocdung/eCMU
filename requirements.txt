@@ -2,6 +2,7 @@ numpy==1.26.4
 torch==2.4.1
 torchvision==0.19.1
 torchaudio==2.4.1
+git+https://github.com/yoyololicon/norbert
 pytorch-lightning==1.9.0
 musdb==0.4.2
 museval==0.4.1
@@ -14,6 +15,8 @@ resampy==0.4.3
 torchinfo==1.8.0
 timm==1.0.11
 yt-dlp==2024.10.22
-jsonargparse[signatures]==4.17.0
-git+https://github.com/yoyololicon/norbert
 tensorboardX==2.6.2.2
+docstring-parser==0.16
+importlib-resources==6.4.5
+jsonargparse==4.33.2
+typeshed-client==2.7.0
