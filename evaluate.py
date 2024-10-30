@@ -41,7 +41,6 @@ def eval_track(references, estimates, windown_size, hop_size, compute_chunk_sdr=
     new_scores = (
             sdr(estimates.view(-1, *estimates.shape[-2:]), references.view(-1, *references.shape[-2:]))   
     )
-
     references = references.squeeze(0).transpose(1, 2).double()
     estimates = estimates.squeeze(0).transpose(1, 2).double()
 
@@ -168,7 +167,6 @@ def main():
     
     print(f"Make an evaluation for: {sources} on {device}")
     start_time = time.time()
-    pool = ThreadPoolExecutor(multiprocessing.cpu_count())
     kwargs = {
         "windown_size": int(1. * src_rate),
         "hop_size": int(1. * src_rate),
@@ -176,34 +174,29 @@ def main():
     }
     
     track_scores = {}
-    futures = []
     for index in tqdm(range(len(test_set)), desc="Separate:"):
         track = test_set.tracks[index]
         track_name = track.name
         mixture, references = read_audio(track, sources, src_rate)
         estimates = model.separate(mixture[None,...].to(device))
 
-        future = pool.submit(eval_track, references, estimates, **kwargs)
-        futures.append((future, track_name))
-
-    futures = tqdm(futures, desc="Compute score:")
-    for future, track_name in futures:
-        scores, nsdrs = future.result()
         track_scores[track_name] = {}
 
+        # Eval track for each single source is faster than for all sources
         for idx, target in enumerate(sources):
-            track_scores[track_name][target] = {'nsdr': [float(nsdrs[idx])]}
-    
-        if scores is not None:
+            _references = references[:,idx,...].unsqueeze(1)
+            _estimates = estimates[:,idx,...].unsqueeze(1)
+            scores, nsdrs = eval_track(_references, _estimates, **kwargs)
+            track_scores[track_name][target] = {'nsdr': [float(nsdrs[0])]}
+
             (sdr, isr, sir, sar) = scores
-            for idx, target in enumerate(sources):
-                values = {
-                    "SDR": sdr[idx].tolist(),
-                    # "SIR": sir[idx].tolist(),
-                    # "ISR": isr[idx].tolist(),
-                    # "SAR": sar[idx].tolist()
-                }
-                track_scores[track_name][target].update(values)
+            values = {
+                "SDR": sdr[0].tolist(),
+                # "SIR": sir[idx].tolist(),
+                # "ISR": isr[idx].tolist(),
+                # "SAR": sar[idx].tolist()
+            }
+            track_scores[track_name][target].update(values)
 
     results = compute_score(track_scores, sources)
     print(results)
