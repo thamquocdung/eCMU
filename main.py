@@ -12,9 +12,8 @@ def cli_main():
 
     cli = LightningCLI(
         trainer_defaults={
-            "accelerator": "gpu",
             "strategy": "ddp",
-            "log_every_n_steps": 1,
+            "devices": torch.cuda.device_count(),
         }
     )
 
