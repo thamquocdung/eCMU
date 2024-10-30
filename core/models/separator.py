@@ -160,7 +160,7 @@ class MusicSeparationModel:
 
         return y_hat
     
-    def forward(self, x):
+    def forward1(self, x):
         """Estimate target waveforms from chunk-level mixture
         Args:
             x (Tensor): 2-channels mixture waveform (B, 2, L) 
@@ -176,6 +176,27 @@ class MusicSeparationModel:
         pred_masks = torch.stack(pred_masks, axis=0).unsqueeze(0)
         Y_hat = self.mwf(pred_masks, X)
         y_hat = self.inv_spec(Y_hat, length=x.shape[-1])
+        return y_hat
+    
+    def forward(self, x):
+        """Estimate target waveforms from chunk-level mixture
+        Args:
+            x (Tensor): 2-channels mixture waveform (B, 2, L) 
+        Return:
+            y_hat (Tensor): 2-channels estimated waveform of n_sources (B, n_sources, 2, L)
+        """
+        X = self.spec(x)
+        X_mag = X.abs()
+        
+        y_hat = []
+        for source_name in self.source_names:
+            pred_mask = self.models[source_name](X_mag)
+            Y = self.mwf(pred_mask, X)[:,0,...]
+            pred_wave = self.inv_spec(Y, length=x.shape[-1])
+            y_hat.append(pred_wave)
+        
+        y_hat = torch.stack(y_hat, axis=1)
+        
         return y_hat
     
 def main():
