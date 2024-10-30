@@ -12,7 +12,7 @@ Our implementation was developed based on the [`sdx23-aimless`](https://github.c
 ## Abstract
 From our baseline [Open-Unmix](https://github.com/sigsep/open-unmix-pytorch) (UMX), we:
 - Attempt to build an affordable model to solve the music source separation (MSS) task in the spectral domain with limited computing resources.
-- Apply a differentiable Multi-channel Wiener Filter (MWF) into a mask-based prediction model to end-to-end estimated the complex spectrogram for each source.
+- Apply a differentiable Multi-channel Wiener Filter ([MWF](git+https://github.com/yoyololicon/norbert)) into a mask-based prediction model to end-to-end estimated the complex spectrogram for each source.
 - Optimize the model by using the Multi-domain loss function on the public [`MUSDB18-HQ`](https://sigsep.github.io/datasets/musdb.html#musdb18-hq-uncompressed-wav) dataset.
 - Leverage the ability of Conformer blocks to capture both local and global feature dependencies on time and frequency axis.
 
@@ -47,7 +47,7 @@ python -m core.models.separator
 python -m core.models.separator 
     assets/samples/22_TaylorSwift.mp3  
     --targets vocals drums
-    --model_ckpt ckpt_path/ 
+    --model_ckpt eCMU_checkpoints/small 
 ```
 Other audio formats: `.wav`, `.m4a`, `.aac` are also supported.
 
@@ -92,7 +92,7 @@ Look into the `.yaml` files, if you want to modify hyper-parameters, training ar
 
 - To evaluate all sources from our public weights:
   ```bash
-  python evaluate.py --all --model_ckpt ckpt_path/ --data_root musdb/
+  python evaluate.py --all --model_ckpt eCMU_checkpoints/small --data_root musdb/
   ```
 - To evaluate only 1 source once training a model, remember to replace `ckpt_path` in `.yaml` config file:
   ```bash
