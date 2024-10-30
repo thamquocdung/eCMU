@@ -30,23 +30,23 @@ _Note: eCMU is a single-target model. This means each stem is separated by a spe
 - Download model weights [here](https://1drv.ms/f/s!AmJ1p7T1QZwRgZBOsrqL9beFjGb6JA?e=0PUKEa).
 - To separate **all sources** on `gpu`:
 ```bash
-python -m core.models.separator 
-    assets/samples/22_TaylorSwift.mp3  
+python -m core.models.separator \
+    assets/samples/22_TaylorSwift.mp3  \
     --model_ckpt eCMU_checkpoints/small
 ```
 
 - To separate **all sources** on `cpu`:
 ```bash
-python -m core.models.separator 
-    assets/samples/22_TaylorSwift.mp3  
-    --model_ckpt eCMU_checkpoints/small 
+python -m core.models.separator \
+    assets/samples/22_TaylorSwift.mp3  \
+    --model_ckpt eCMU_checkpoints/small \
     --no-gpu
 ```
 - Or, even if you want to separte a **subset of stems** (i.e: only {`vocals`, `drums`}), you can run:
 ```bash
-python -m core.models.separator 
-    assets/samples/22_TaylorSwift.mp3  
-    --targets vocals drums
+python -m core.models.separator \
+    assets/samples/22_TaylorSwift.mp3  \
+    --targets vocals drums \
     --model_ckpt eCMU_checkpoints/small 
 ```
 Other audio formats: `.wav`, `.m4a`, `.aac` are also supported.
@@ -93,6 +93,7 @@ Look into the `.yaml` files, if you want to modify hyper-parameters, training ar
 - To evaluate all sources from our public weights:
   ```bash
   python evaluate.py --all --model_ckpt eCMU_checkpoints/small --data_root musdb/
+  # python evaluate.py --all --model_ckpt eCMU_checkpoints/small --data_root musdb/ --targets vocals drums
   ```
 - To evaluate only 1 source once training a model, remember to replace `ckpt_path` in `.yaml` config file:
   ```bash
